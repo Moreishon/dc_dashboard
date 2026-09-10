@@ -21,9 +21,10 @@ import {
   traerDias, traerProductoMes, traerGuisadoMes, traerModificadorMes,
 } from './datos.js';
 import { C, FUENTES, pagina, encabezado, tituloEncabezado, nota, fechaLarga,
-         DISPLAY } from './estilo.js';
+         fechaMedia, DISPLAY } from './estilo.js';
 import { usarAncho } from './usarAncho.js';
 import { atajoInicial } from './rango.js';
+import { Isotipo, Imagotipo, ImagotipoVertical } from './marca.jsx';
 import SelectorPeriodo from './pantallas/SelectorPeriodo.jsx';
 import Entrar from './pantallas/Entrar.jsx';
 import Importar from './pantallas/Importar.jsx';
@@ -43,12 +44,10 @@ function Cargando({ texto }) {
     <div style={{
       minHeight: '100vh', background: C.negro,
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: '16px',
+      alignItems: 'center', justifyContent: 'center', gap: '22px',
+      padding: '24px',
     }}>
-      <div style={{
-        fontFamily: "'Playfair Display', Georgia, serif",
-        color: C.crema, fontSize: '26px', fontWeight: 700,
-      }}>Don Comal</div>
+      <ImagotipoVertical alto={150} />
       <div style={{ width: '120px', height: '3px', background: '#222',
                     borderRadius: '2px', overflow: 'hidden' }}>
         <div style={{ width: '40%', height: '100%', background: C.terracota,
@@ -65,14 +64,22 @@ function Cargando({ texto }) {
   );
 }
 
-function Encabezado({ perfil, cobertura, onSalir }) {
+// En pantalla ancha cabe el imagotipo completo y todavía sobra lugar para el
+// "Datos". En celular no: ahí va solo el isotipo, que es la pieza que sigue
+// siendo reconocible a 28 píxeles, y el nombre de la app se cae porque compite
+// con la fecha de corte, que sí es información.
+function Encabezado({ perfil, cobertura, onSalir, esAncho }) {
   return (
     <div style={encabezado}>
-      <div style={{ flex: 'none' }}>
-        <h1 style={tituloEncabezado}>Datos</h1>
-        <p style={{ fontSize: '11.5px', color: C.tinta4, marginTop: '2px' }}>
-          {perfil?.nombre || 'Sin nombre'} · {perfil?.rol || 'sin rol'}
-        </p>
+      <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: '11px' }}>
+        {esAncho ? <Imagotipo alto={30} /> : <Isotipo alto={28} />}
+        <div style={{ borderLeft: `1px solid ${C.negroSuave}`, paddingLeft: '11px' }}>
+          {esAncho && <h1 style={{ ...tituloEncabezado, fontSize: '16px' }}>Datos</h1>}
+          <p style={{ fontSize: '11.5px', color: C.tinta4,
+                      marginTop: esAncho ? '1px' : 0 }}>
+            {perfil?.nombre || 'Sin nombre'} · {perfil?.rol || 'sin rol'}
+          </p>
+        </div>
       </div>
 
       {cobertura?.datos_hasta && (
@@ -80,7 +87,8 @@ function Encabezado({ perfil, cobertura, onSalir }) {
           <div style={{ fontSize: '10px', color: C.tinta4, textTransform: 'uppercase',
                         letterSpacing: '0.08em', fontWeight: 600 }}>Datos hasta</div>
           <div style={{ fontSize: '13px', color: C.crema, fontWeight: 600 }}>
-            {fechaLarga(cobertura.datos_hasta)}
+            {esAncho ? fechaLarga(cobertura.datos_hasta)
+                     : fechaMedia(cobertura.datos_hasta)}
           </div>
         </div>
       )}
@@ -223,7 +231,8 @@ export default function App() {
     <>
       <style>{FUENTES}</style>
       <div style={pagina(esAncho)}>
-        <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir} />
+        <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir}
+                    esAncho={esAncho} />
         {contenido}
       </div>
     </>
@@ -261,7 +270,8 @@ export default function App() {
     <>
       <style>{FUENTES}</style>
       <div style={pagina(esAncho)}>
-        <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir} />
+        <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir}
+                    esAncho={esAncho} />
         {/* Las pestañas y el selector se pegan arriba JUNTOS, dentro de un
             solo contenedor. Por separado los dos pedirían top:0 y se
             encimarían al hacer scroll. */}

@@ -148,7 +148,8 @@ src/
   analisis.js        El cálculo del tablero. Funciones puras, probables en Node.
   datos.js           Todo lo que habla con Supabase. Lo único que sabe de HTTP.
   estilo.js          Colores, tipografías y formas. Los mismos que la app de compras.
-  graficas.jsx       SVG a mano. Sin librería de gráficas.
+  marca.jsx          El logo, en sus tres versiones y cada una en su lugar.
+  graficas.jsx       SVG a mano, más el <Delta/> que colorea todos los cambios.
   usarAncho.js       Mide la ventana para el diseño responsivo.
   App.jsx            Sesión, rol, carga de datos y navegación.
   pantallas/
@@ -162,11 +163,16 @@ pruebas/
   seguridad.sh             Intenta romper el esquema y comprueba que no se deja.
   navegador.mjs            La app en un Chromium de verdad.
   tablero.mjs              Monta las tres pantallas con datos reales y las revisa.
+  marca.mjs                Las cuatro superficies con logo: que cargue y no se deforme.
   analisis.mjs             El cálculo contra las cifras del informe anual.
   contra_python.mjs        El detalle contra el pipeline original.
   contra_python_dias.mjs   El grano diario contra el histórico.
   vista.html/.jsx          Banco de pruebas: las pantallas sin Supabase.
+  marca.html/.jsx          Banco de la carga, la entrada y los dos encabezados.
   datos/                   Fixtures del histórico para ese banco.
+public/
+  logo/                    Isotipo, imagotipo y logotipo, blancos sobre transparente.
+  icon.png                 El isotipo sobre el negro de marca, para el ícono de la app.
 ```
 
 `poster.js` está aparte a propósito: no depende del navegador ni de la base, y
@@ -186,6 +192,21 @@ importa: lo que importa es cuánto espacio hay ahora mismo. El corte está en
 **Los componentes van fuera de `App`.** Si se definen adentro, React los trata
 como un componente distinto en cada render, desmonta lo que había, y el campo
 de texto en el que estabas escribiendo pierde el foco a cada letra.
+
+**Un solo `<Delta/>` para todos los cambios.** El porcentaje que sube va verde
+y el que baja va rojo, en las tres pantallas. Eso estaba escrito tres veces —una
+por pantalla— y pasó lo previsible: dos lo pintaban y la de guisados lo dejaba en
+gris. Ahora es un componente en `graficas.jsx` y una prueba que mide el **color
+que el navegador acabó aplicando**, no el código: si algún cambio vuelve a salir
+gris, `tablero.mjs` lo dice con el número y el color que encontró.
+
+Ese componente también sabe la diferencia entre por ciento y **puntos**. La
+participación de un guisado que pasa de 18% a 16% no bajó 2%, bajó 2 puntos.
+
+**El logo es blanco sobre transparente.** Por eso va solo en las superficies
+oscuras —carga, entrada, encabezado— y sería invisible sobre el papel del
+cuerpo. Si algún día hace falta sobre fondo claro, hay que pedir la versión en
+negro; teñir la blanca no funciona.
 
 **Nunca `toISOString()`.** Estamos en UTC−6: una fecha convertida así se corre
 un día y el análisis de fin de semana queda mal. Siempre `getFullYear()`,

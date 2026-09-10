@@ -11,7 +11,7 @@
 
 import XLSX from 'xlsx';
 import fs from 'node:fs';
-import { armarCatalogos, procesar } from './poster.js';
+import { armarCatalogos, procesar } from '../src/poster.js';
 
 const BASE = '/home/claude/doncomal';
 

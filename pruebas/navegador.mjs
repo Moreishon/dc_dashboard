@@ -19,10 +19,19 @@ import { readFileSync } from 'node:fs';
 const RAIZ = new URL('..', import.meta.url).pathname;
 const DATOS = '/home/claude/doncomal';
 
+// Credenciales de mentira, puestas aquí y no en un .env: la prueba no debe
+// depender de que la máquina tenga configurado un proyecto de Supabase, ni
+// tocar el .env real de nadie. Con estas la app se considera configurada y
+// habilita el formulario; ninguna petición va a llegar a ningún lado, que es
+// justo lo que esta prueba necesita — mira la pantalla, no la red.
 const vite = await createServer({
   root: RAIZ,
   server: { port: 4321 },
   logLevel: 'error',
+  define: {
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://prueba.supabase.co'),
+    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('llave-de-mentira'),
+  },
 });
 await vite.listen();
 
@@ -53,7 +62,7 @@ const esRuidoDelEntorno = (t) =>
   await pag.waitForTimeout(700);
 
   console.log('\nPantalla de entrada (iPhone 390×844)');
-  ok(await pag.locator('h1:has-text("Don Comal")').isVisible(), 'se ve el título');
+  ok(await pag.locator('img[alt="Don Comal"]').isVisible(), 'se ve la marca');
   ok(await pag.locator('input[type=email]').isVisible(), 'hay campo de correo');
   ok(await pag.locator('input[type=password]').isVisible(), 'hay campo de contraseña');
   ok(await pag.locator('button:has-text("Entrar")').isVisible(), 'hay botón de entrar');
@@ -86,7 +95,7 @@ const esRuidoDelEntorno = (t) =>
   await pag.waitForTimeout(500);
 
   console.log('\nLa misma pantalla en escritorio (1440×900)');
-  ok(await pag.locator('h1:has-text("Don Comal")').isVisible(), 'se ve el título');
+  ok(await pag.locator('img[alt="Don Comal"]').isVisible(), 'se ve la marca');
 
   const desborde = await pag.evaluate(() =>
     document.documentElement.scrollWidth > document.documentElement.clientWidth);

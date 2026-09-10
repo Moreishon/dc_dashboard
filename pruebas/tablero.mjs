@@ -34,6 +34,36 @@ const navegador = await chromium.launch({ executablePath: '/opt/pw-browsers/chro
 let fallas = 0;
 const ok = (b, t) => { console.log(`  ${b ? '✓' : '✗'} ${t}`); if (!b) fallas++; };
 
+// Un cambio porcentual pintado de gris es un cambio que no se lee. Esta función
+// no busca el código: busca el color que el navegador acabó aplicando, que es
+// lo único que el ojo ve. La pantalla de guisados llevaba semanas en gris y
+// ninguna prueba lo notaba, porque ninguna miraba el píxel.
+const VERDE = 'rgb(30, 122, 80)';
+const ROJO  = 'rgb(221, 60, 38)';
+// Los mismos dos, calibrados para la tarjeta negra: ahí el verde de marca no
+// se lee y Delta cambia a estos. Siguen siendo verde-sube y rojo-baja.
+const VERDE_OSCURO = 'rgb(123, 224, 174)';
+const ROJO_OSCURO  = 'rgb(255, 174, 155)';
+
+async function cambiosPintados(pag) {
+  return pag.evaluate(({ buenos }) => {
+    const conSigno = /^\s*[↑↓+-]?\s*[\d,.]+\s*(%|pts)\s*$/;
+    let total = 0, coloreados = 0, grises = [];
+    for (const el of document.querySelectorAll('span, td, div')) {
+      // Solo hojas: si un nodo tiene hijos, el texto es de ellos.
+      if (el.children.length) continue;
+      const t = el.textContent;
+      if (!conSigno.test(t)) continue;
+      if (/^\s*[\d,.]+\s*%\s*$/.test(t)) continue;   // un nivel, no un cambio
+      total++;
+      const c = getComputedStyle(el).color;
+      if (buenos.includes(c)) coloreados++;
+      else grises.push(t.trim() + ' → ' + c);
+    }
+    return { total, coloreados, grises: grises.slice(0, 4) };
+  }, { buenos: [VERDE, ROJO, VERDE_OSCURO, ROJO_OSCURO] });
+}
+
 const ruido = (t) =>
   /fonts\.googleapis|fonts\.gstatic|ERR_TUNNEL|ERR_NAME_NOT_RESOLVED|Failed to load resource/.test(t);
 
@@ -114,6 +144,10 @@ async function abrir(ancho, alto) {
   });
   ok(textoColoreado === 0, 'ninguna etiqueta usa el color de la serie');
 
+  const cr = await cambiosPintados(pag);
+  ok(cr.total > 0 && cr.coloreados === cr.total,
+     `los ${cr.total} cambios van en verde o rojo${cr.grises.length ? ' — grises: ' + cr.grises.join(' | ') : ''}`);
+
   ok(errores.length === 0, `sin errores${errores.length ? ': ' + errores[0] : ''}`);
   await pag.screenshot({ path: '/tmp/dc_resumen.png', fullPage: true });
 
@@ -128,6 +162,9 @@ async function abrir(ancho, alto) {
   ok(/enfriaron/i.test(tp) && /calentaron/i.test(tp), 'están los que suben y los que bajan');
   ok(/Ver los números/.test(tp), 'también traen tabla de números');
   ok(!/Cargando/.test(tp), 'terminó de cargar');
+  const cp = await cambiosPintados(pag);
+  ok(cp.total > 0 && cp.coloreados === cp.total,
+     `los ${cp.total} cambios van en verde o rojo${cp.grises.length ? ' — grises: ' + cp.grises.join(' | ') : ''}`);
   await pag.screenshot({ path: '/tmp/dc_productos.png', fullPage: true });
 
   // ─── guisados ──
@@ -142,6 +179,10 @@ async function abrir(ancho, alto) {
   const series = await pag.evaluate(() =>
     document.querySelectorAll('svg polyline').length);
   ok(series >= 5, `${series} series en la gráfica de movimiento`);
+  ok(/pts/.test(tg), 'el movimiento de participación se mide en puntos, no en %');
+  const cg = await cambiosPintados(pag);
+  ok(cg.total > 0 && cg.coloreados === cg.total,
+     `los ${cg.total} cambios van en verde o rojo${cg.grises.length ? ' — grises: ' + cg.grises.join(' | ') : ''}`);
   ok(errores.length === 0, `sin errores${errores.length ? ': ' + errores[0] : ''}`);
   await pag.screenshot({ path: '/tmp/dc_guisados.png', fullPage: true });
 

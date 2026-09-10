@@ -24,7 +24,7 @@ import {
   diasEntre,
 } from '../analisis.js';
 import { comparaciones, cuantosDias, sumarDias, estaEnCurso } from '../rango.js';
-import { Tendencia, Columnas, Numeros, SERIES } from '../graficas.jsx';
+import { Tendencia, Columnas, Numeros, Delta, SERIES } from '../graficas.jsx';
 import {
   C, DISPLAY, tarjeta, tituloTarjeta, nota, rejilla,
   pesos, pesosExactos, numero, porciento, nombreMes, fechaCorta, rangoLegible,
@@ -44,25 +44,10 @@ function Tarjeta({ titulo, sub, children, extra }) {
   );
 }
 
-/** Un porcentaje con su signo y su color. */
-function Delta({ valor, grande }) {
-  if (valor === null || valor === undefined) {
-    return <span style={{ color: C.tinta4 }}>—</span>;
-  }
-  const sube = valor > 0;
-  return (
-    <span style={{
-      color: sube ? C.bien : (valor < 0 ? C.rojo : C.tinta3),
-      fontWeight: 700, fontSize: grande ? '15px' : 'inherit',
-      background: sube ? C.bienSuave : (valor < 0 ? C.errorSuave : 'transparent'),
-      padding: grande ? '3px 9px' : '2px 6px',
-      borderRadius: '999px',
-      whiteSpace: 'nowrap',
-    }}>
-      {sube ? '↑' : valor < 0 ? '↓' : ''} {Math.abs(valor).toFixed(1)}%
-    </span>
-  );
-}
+// Delta —el porcentaje con su color— vive en graficas.jsx, compartido con
+// Productos y Guisados. Estaba aquí y se quedó aquí: las otras pantallas
+// terminaron pintando los cambios en gris porque cada una lo resolvía por su
+// cuenta. Un solo componente para todas es lo que impide que vuelva a pasar.
 
 function Cifra({ etiqueta, valor, delta, pie }) {
   return (
@@ -188,13 +173,8 @@ export default function Resumen({ dias, esAncho, rango, ultimoDato }) {
             <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center',
                           gap: '9px', flexWrap: 'wrap' }}>
               {pulso.delta !== null && (
-                <span style={{
-                  fontSize: '14px', fontWeight: 700,
-                  color: pulso.delta >= 0 ? '#7BE0AE' : '#FFAE9B',
-                  background: 'rgba(255,255,255,.10)',
-                  padding: '4px 11px', borderRadius: '999px',
-                }}>
-                  {pulso.delta >= 0 ? '↑' : '↓'} {Math.abs(pulso.delta).toFixed(1)}%
+                <span style={{ fontSize: '14px' }}>
+                  <Delta valor={pulso.delta} sobreOscuro />
                 </span>
               )}
               <span style={{ fontSize: '13px', color: C.durazno }}>
@@ -454,9 +434,12 @@ function Renglon({ nombre, porDia, crudo }) {
     <>
       <span style={{ color: C.tinta2 }}>{nombre}</span>
       <span style={{ textAlign: 'right' }}><Delta valor={porDia} /></span>
-      <span style={{ textAlign: 'right', color: C.tinta4,
-                     fontVariantNumeric: 'tabular-nums', fontSize: '13px' }}>
-        {porciento(crudo)}
+      {/* El total va con color pero sin pastilla: es la cifra secundaria y no
+          debe competir con la de por día, que es la que hay que leer. El color
+          sí importa aquí — cuando esta columna es roja y la otra verde, eso ES
+          la trampa del calendario, y verla en dos colores la delata sola. */}
+      <span style={{ textAlign: 'right', fontSize: '13px' }}>
+        <Delta valor={crudo} fondo={false} flecha={false} />
       </span>
     </>
   );

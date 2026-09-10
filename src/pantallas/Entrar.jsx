@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { entrar, faltaConfiguracion } from '../datos.js';
 import { C, campo, etiqueta, boton, botonApagado, nota } from '../estilo.js';
+import { ImagotipoVertical } from '../marca.jsx';
 
 export default function Entrar() {
   const [correo, setCorreo] = useState('');
@@ -35,12 +36,14 @@ export default function Entrar() {
       background: C.negro,
     }}>
       <div style={{ maxWidth: '380px', width: '100%', margin: '0 auto' }}>
-        <h1 style={{
-          fontFamily: "'Playfair Display', Georgia, serif",
-          color: C.crema, fontSize: '30px', fontWeight: 700,
-          marginBottom: '6px', lineHeight: 1.15,
-        }}>Don Comal</h1>
-        <p style={{ color: C.tinta4, fontSize: '14px', marginBottom: '28px' }}>
+        {/* Aquí la marca es lo único que hay que ver, así que va completa y
+            centrada. El logo es blanco sobre transparente y esta pantalla es
+            negra: encaja sin recuadro ni fondo de ningún tipo. */}
+        <ImagotipoVertical alto={132} />
+        <p style={{ color: C.tinta4, fontSize: '13.5px', marginTop: '14px',
+                    marginBottom: '30px', textAlign: 'center',
+                    textTransform: 'uppercase', letterSpacing: '0.14em',
+                    fontWeight: 600 }}>
           Tablero de ventas
         </p>
 

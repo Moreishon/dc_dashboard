@@ -145,6 +145,69 @@ export function Numeros({ filas, columnas }) {
   );
 }
 
+// ─── el cambio, con su color ─────────────────────────────────────────────────
+
+/**
+ * Un cambio con su signo y su color: verde si subió, rojo si bajó, gris si no
+ * hay con qué comparar.
+ *
+ * Vive aquí, y no dentro de cada pantalla, porque el criterio tiene que ser el
+ * mismo en todas. Cuando estaba repetido pasó justo lo que tenía que pasar: dos
+ * pantallas pintaban el porcentaje y la tercera lo dejaba en gris, y nada en el
+ * código lo delataba. Un componente compartido no se puede olvidar en una sola
+ * pantalla.
+ *
+ * `unidad` no es decoración. Un cambio de ventas se mide en **por ciento**; un
+ * cambio de participación se mide en **puntos**. Pasar de 20% a 22% es +2
+ * puntos, no +2%: son dos cosas distintas y escribirlas igual es un error de
+ * fondo, no de formato.
+ *
+ * `sobreOscuro` cambia los verdes y rojos por versiones claras. No es un
+ * capricho: el verde de marca (#1E7A50) sobre el negro de la tarjeta grande no
+ * se lee. Es el mismo componente y la misma regla —verde sube, rojo baja—, solo
+ * que calibrada para el fondo en el que va.
+ *
+ * `fondo={false}` quita la pastilla. Sirve donde el cambio es la cifra
+ * secundaria y no debe competir con la principal: sigue teniendo color, pero
+ * pesa menos.
+ */
+const VERDE_OSCURO = '#7BE0AE';   // sobre negro
+const ROJO_OSCURO  = '#FFAE9B';
+
+export function Delta({ valor, unidad = '%', grande, decimales = 1,
+                        flecha = true, fondo = true, sobreOscuro = false }) {
+  if (valor === null || valor === undefined || !isFinite(valor)) {
+    return <span style={{ color: sobreOscuro ? C.tinta3 : C.tinta4 }}>—</span>;
+  }
+  const sube = valor > 0;
+  const baja = valor < 0;
+
+  const color = sobreOscuro
+    ? (sube ? VERDE_OSCURO : baja ? ROJO_OSCURO : C.durazno)
+    : (sube ? C.bien : baja ? C.rojo : C.tinta3);
+  const relleno = !fondo ? 'transparent'
+    : sobreOscuro ? 'rgba(255,255,255,.10)'
+    : (sube ? C.bienSuave : baja ? C.errorSuave : 'transparent');
+
+  return (
+    <span style={{
+      display: 'inline-block',
+      color,
+      background: relleno,
+      fontWeight: 700,
+      fontSize: grande ? '15px' : 'inherit',
+      padding: fondo ? (grande ? '4px 11px' : '2px 6px') : 0,
+      borderRadius: '999px',
+      whiteSpace: 'nowrap',
+      fontVariantNumeric: 'tabular-nums',
+    }}>
+      {flecha && (sube ? '↑ ' : baja ? '↓ ' : '')}
+      {!flecha && sube ? '+' : ''}
+      {Math.abs(valor).toFixed(decimales)}{unidad}
+    </span>
+  );
+}
+
 function Vacio({ alto }) {
   return (
     <div style={{ height: `${alto}px`, display: 'flex', alignItems: 'center',
@@ -348,6 +411,10 @@ export function Columnas({ datos, alto = 200, formato = pesos, resaltar = null,
  *
  * El valor va al final de la barra, no dentro: dentro se cortaría en las
  * barras chicas.
+ *
+ * `nota` acepta texto o un pedazo de JSX. Eso importa: la nota es donde va el
+ * movimiento contra el periodo anterior, y un movimiento sin color se lee como
+ * un dato más. Con JSX se le puede meter un <Delta/> adentro.
  */
 export function Barras({ datos, formato = numero, alto = 20, maximo = null }) {
   if (!datos?.length) return <Vacio alto={120} />;

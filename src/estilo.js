@@ -260,6 +260,15 @@ export const fechaCorta = (iso) => {
   return `${+d} ${MESES[+m - 1].slice(0, 3)}`;
 };
 
+/** '2026-09-05' -> '5 sep 2026'. Para el encabezado en celular, donde la
+ *  versión larga se parte en dos renglones. Sigue trayendo día, mes y año:
+ *  se acorta el mes, no se quita información. */
+export const fechaMedia = (iso) => {
+  if (!iso) return '—';
+  const [a, m, d] = String(iso).split('-');
+  return `${+d} ${MESES[+m - 1].slice(0, 3)} ${a}`;
+};
+
 /** '2026-09-05' -> '5 de septiembre de 2026'. */
 export const fechaLarga = (iso) => {
   if (!iso) return '—';

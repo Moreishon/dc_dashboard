@@ -23,7 +23,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { comparaciones } from '../rango.js';
 import { evolucionGuisados } from '../analisis.js';
 import { traerGuisadosRango, traerModificadoresRango } from '../datos.js';
-import { Barras, Lineas, Numeros, SERIES } from '../graficas.jsx';
+import { Barras, Lineas, Numeros, Delta, SERIES } from '../graficas.jsx';
 import {
   C, tarjeta, tituloTarjeta, nota, rejilla,
   pesos, numero, nombreMes, rangoLegible,
@@ -148,23 +148,42 @@ export default function Guisados({ rango, esAncho, guisadoMes, periodos }) {
   // Los cinco que salen en la gráfica de abajo van con SU color, para que se
   // reconozcan entre las dos. Los demás en gris: son contexto, no series.
   // Nunca se repite un color — dos barras idénticas se leerían como lo mismo.
+  //
+  // El movimiento va con <Delta/>, el mismo componente que usan Resumen y
+  // Productos. Aquí se mide en PUNTOS, no en por ciento: pasar de 18% a 16% de
+  // participación es −2 puntos. Decir "−2%" sería otra cifra y otra cosa.
   const barras = calc.part.filas.map((f) => {
     const iSerie = calc.series.indexOf(f.guisado);
     const antes = calc.mapaAntes.get(f.guisado);
     // 'Otros' NO se compara: agrupa guisados distintos en cada periodo.
-    const mueve = (f.guisado !== 'Otros' && antes !== undefined)
+    const mueve = (f.guisado !== 'Otros' && antes !== undefined && calc.hayAntes)
       ? Math.round((f.participacion - antes) * 10) / 10 : null;
     return {
       etiqueta: f.guisado,
       valor: f.participacion,
       color: iSerie >= 0 ? SERIES[iSerie] : '#BCADA2',
-      nota: `${numero(f.unidades)} unidades` +
-        (mueve !== null && calc.hayAntes
-          ? ` · ${mueve > 0 ? '+' : ''}${mueve} puntos contra ${cmp.anterior.nombre}`
-          : '') +
-        (f.otros ? ` · ${f.otros} guisados más` : ''),
+      nota: (
+        <span style={{ display: 'inline-flex', alignItems: 'center',
+                       gap: '6px', flexWrap: 'wrap' }}>
+          <span>{numero(f.unidades)} unidades</span>
+          {mueve !== null && (
+            <>
+              <Delta valor={mueve} unidad=" pts" decimales={1} />
+              <span>contra {cmp.anterior.nombre}</span>
+            </>
+          )}
+          {f.otros ? <span>· {f.otros} guisados más</span> : null}
+        </span>
+      ),
     };
   });
+
+  /** Los puntos que se movió cada guisado, para la tabla. */
+  const movimiento = (f) => {
+    const antes = calc.mapaAntes.get(f.guisado);
+    if (f.guisado === 'Otros' || antes === undefined || !calc.hayAntes) return null;
+    return Math.round((f.participacion - antes) * 10) / 10;
+  };
 
   return (
     <div style={{ padding: '18px',
@@ -193,6 +212,8 @@ export default function Guisados({ rango, esAncho, guisadoMes, periodos }) {
           { titulo: 'Guisado', valor: (f) => f.guisado },
           { titulo: 'Repartidas', valor: (f) => numero(f.unidades) },
           { titulo: 'Participación', valor: (f) => `${f.participacion}%` },
+          { titulo: `Contra ${cmp.anterior.nombre}`,
+            valor: (f) => <Delta valor={movimiento(f)} unidad=" pts" /> },
           { titulo: 'En pedidos', valor: (f) => numero(f.presencia) },
         ]} />
       </Tarjeta>

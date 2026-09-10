@@ -18,7 +18,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { comparaciones, cuantosDias } from '../rango.js';
 import { traerProductosRango } from '../datos.js';
-import { Barras, Numeros, SERIES } from '../graficas.jsx';
+import { Barras, Numeros, Delta, SERIES } from '../graficas.jsx';
 import {
   C, tarjeta, tituloTarjeta, nota, rejilla, pastilla,
   pesos, pesosExactos, numero, rangoLegible,
@@ -56,12 +56,8 @@ function ListaMovimiento({ filas, vacio }) {
               {f.estado === 'sin ventas' && ' · no se vendió'}
             </div>
           </div>
-          <div style={{ flex: 'none', fontWeight: 700, fontSize: '14px',
-                        fontVariantNumeric: 'tabular-nums',
-                        color: f.cambio > 0 ? C.bien : C.rojo,
-                        background: f.cambio > 0 ? C.bienSuave : C.errorSuave,
-                        padding: '4px 10px', borderRadius: '999px' }}>
-            {f.cambio > 0 ? '↑' : '↓'} {Math.abs(Math.round(f.cambio))}%
+          <div style={{ flex: 'none', fontSize: '14px' }}>
+            <Delta valor={f.cambio} decimales={0} />
           </div>
         </div>
       ))}
@@ -257,7 +253,7 @@ export default function Productos({ rango, esAncho }) {
                     { titulo: 'Producto', valor: (f) => f.producto },
                     { titulo: 'Antes', valor: (f) => numero(f.unidadesBase) },
                     { titulo: 'Ahora', valor: (f) => numero(f.unidades) },
-                    { titulo: 'Cambio', valor: (f) => `${f.cambio}%` },
+                    { titulo: 'Cambio', valor: (f) => <Delta valor={f.cambio} /> },
                   ]} />
                 </Tarjeta>
 
@@ -269,7 +265,7 @@ export default function Productos({ rango, esAncho }) {
                     { titulo: 'Producto', valor: (f) => f.producto },
                     { titulo: 'Antes', valor: (f) => numero(f.unidadesBase) },
                     { titulo: 'Ahora', valor: (f) => numero(f.unidades) },
-                    { titulo: 'Cambio', valor: (f) => `+${f.cambio}%` },
+                    { titulo: 'Cambio', valor: (f) => <Delta valor={f.cambio} /> },
                   ]} />
                 </Tarjeta>
               </div>

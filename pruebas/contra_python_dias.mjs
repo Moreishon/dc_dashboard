@@ -1,7 +1,7 @@
 // ¿El grano diario que produce el parser reproduce el histórico ya cargado?
 import XLSX from 'xlsx';
 import fs from 'node:fs';
-import { armarCatalogos, procesar } from './poster.js';
+import { armarCatalogos, procesar } from '../src/poster.js';
 const BASE='/home/claude/doncomal';
 function leerCSV(ruta){const t=fs.readFileSync(ruta,'utf-8');const filas=[];let campo='',fila=[],q=false;
 for(let i=0;i<t.length;i++){const c=t[i];
