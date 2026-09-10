@@ -4,8 +4,9 @@ Tablero de ventas para un restaurante que usa Poster POS. Lee el reporte
 mensual que exporta Poster, lo normaliza y lo guarda en tu propia base de
 datos, donde ya se puede analizar de verdad.
 
-Ahora mismo hace una sola cosa —importar— y la hace bien. El tablero se
-construye encima.
+Cuatro pantallas: **Resumen** (cómo va el mes, con la comparación corregida por
+calendario), **Productos** (los que más dejan, los que más se venden, los que se
+enfriaron), **Guisados** (participación y cómo se mueve) e **Importar**.
 
 ## Lo que resuelve
 
@@ -44,7 +45,7 @@ Nadie aloja los datos de nadie.
 ### 1 · La base de datos
 
 En [supabase.com](https://supabase.com), proyecto nuevo. En el SQL Editor,
-corre en orden los tres archivos de la carpeta `sql/`:
+corre **en orden** los archivos de la carpeta `sql/`:
 
 | Archivo | Qué hace |
 |---|---|
@@ -54,6 +55,13 @@ corre en orden los tres archivos de la carpeta `sql/`:
 | `04_por_rango.sql` | Reemplaza esa función por una que trabaja por rango de fechas |
 | `05_permisos.sql` | Da permiso de lectura a las vistas. Vuelve a correrlo si agregas vistas |
 | `06_cobertura_rapida.sql` | Vista de cobertura barata e índices por fecha |
+| `07_agregados.sql` | Agregados precalculados del tablero |
+| `08_rangos.sql` | Funciones que agregan por rango de fechas |
+
+Se pueden volver a correr cuantas veces haga falta, en cualquier orden: cada
+objeto se define en un solo archivo, así que ninguno deshace lo que hizo otro.
+Eso está probado en `pruebas/instalacion.sh`, que instala desde cero tres veces
+seguidas — no es una promesa, es una prueba que se corre.
 
 Después crea tu usuario en **Authentication → Users** y date rol de
 administrador:
@@ -113,16 +121,27 @@ en ningún archivo que llegue al navegador.
 ```
 src/
   poster.js          Lee el xlsx de Poster y clasifica. No sabe qué es Supabase.
+  analisis.js        El cálculo del tablero. Funciones puras, probables en Node.
   datos.js           Todo lo que habla con Supabase. Lo único que sabe de HTTP.
   estilo.js          Colores, tipografías y formas. Los mismos que la app de compras.
-  App.jsx            Sesión, rol y qué pantalla se muestra.
+  graficas.jsx       SVG a mano. Sin librería de gráficas.
+  usarAncho.js       Mide la ventana para el diseño responsivo.
+  App.jsx            Sesión, rol, carga de datos y navegación.
   pantallas/
     Entrar.jsx       Login.
+    Resumen.jsx      KPIs del mes y tendencia.
+    Productos.jsx    Rankings y movimiento.
+    Guisados.jsx     Participación, evolución y extras.
     Importar.jsx     El camino completo de una importación.
 pruebas/
-  navegador.mjs            Prueba la app en un Chromium de verdad.
-  contra_python.mjs        Compara el detalle contra el pipeline original.
-  contra_python_dias.mjs   Compara el grano diario contra el histórico.
+  instalacion.sh           Instala los ocho SQL desde cero, tres veces.
+  navegador.mjs            La app en un Chromium de verdad.
+  tablero.mjs              Monta las tres pantallas con datos reales y las revisa.
+  analisis.mjs             El cálculo contra las cifras del informe anual.
+  contra_python.mjs        El detalle contra el pipeline original.
+  contra_python_dias.mjs   El grano diario contra el histórico.
+  vista.html/.jsx          Banco de pruebas: las pantallas sin Supabase.
+  datos/                   Fixtures del histórico para ese banco.
 ```
 
 `poster.js` está aparte a propósito: no depende del navegador ni de la base, y
@@ -168,6 +187,25 @@ recorra `dc_ventas_detalle` varias veces lo va a provocar. Cuando exista el
 grano diario, preguntarle a él: `dc_ventas_dia` tiene 1,106 renglones contra
 138,762, y para contar días, sumar ingresos o encontrar la última fecha da
 exactamente lo mismo.
+
+## Tres trampas que el tablero corrige y casi ningún reporte corrige
+
+**El calendario.** Los meses tienen de 28 a 31 días y de 12 a 15 viernes-a-domingo.
+Comparar totales mezcla "vendí más" con "tuve más días". Entre enero y febrero de
+2026 el total dice −3.6% y el promedio diario dice +3.2%: el signo se invierte.
+Toda comparación enseña el promedio diario primero y avisa cuando las dos cifras
+cuentan historias distintas.
+
+**El mes en curso.** Un mes con cinco días no es un mes malo, es un mes que no ha
+terminado. Comparado completo daría −86%. Los atajos recortan el periodo de
+comparación al mismo tramo, y cuando no se puede, normalizan por día y lo dicen.
+
+**La composición de días.** Dos semanas del mismo largo tampoco son comparables
+si una trae domingo y la otra lunes. La semana del 31 de agosto de 2026 salía
+−21.4% contra la anterior; casi todo era que la anterior tenía un domingo de
+35,000 y esta un lunes de 14,700. Mirando solo los días presentes en las dos,
+la caída real era **−8.6%**. El tablero detecta el desajuste, avisa cuáles días
+no tienen pareja y da la cifra día-con-día.
 
 ## Qué falta
 

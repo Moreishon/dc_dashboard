@@ -181,6 +181,84 @@ export async function traerCobertura() {
   return (data && data[0]) || null;
 }
 
+// ─── lo que consume el tablero ───────────────────────────────────────────────
+
+/**
+ * Trae una tabla completa, por páginas.
+ *
+ * Supabase corta cualquier consulta en 1,000 renglones por omisión, y no avisa:
+ * simplemente devuelve mil y ya. Con 1,106 días y 2,677 renglones de
+ * producto-mes, pedir "todo" sin paginar daría un tablero con datos faltantes
+ * y ningún error a la vista.
+ */
+async function traerTodo(vista, columnas, orden) {
+  const TAMANO = 1000;
+  const salida = [];
+  for (let desde = 0; ; desde += TAMANO) {
+    let q = sb.from(vista).select(columnas).range(desde, desde + TAMANO - 1);
+    if (orden) q = q.order(orden, { ascending: true });
+    const { data, error } = await q;
+    if (error) throw new Error(`${vista}: ${error.message}`);
+    salida.push(...(data || []));
+    if (!data || data.length < TAMANO) break;
+  }
+  return salida;
+}
+
+/** La serie diaria completa. Es la base de casi todo el tablero. */
+export const traerDias = () => traerTodo(
+  'dc_v_dias',
+  'fecha, periodo, ingresos_totales, ingresos_productos, ingreso_envio, ' +
+  'recibos, clientes, ticket_promedio, unidades, piezas, renglones',
+  'fecha');
+
+export const traerProductoMes = () => traerTodo(
+  'dc_v_t_producto_mes',
+  'periodo, producto, familia, unidad_venta, unidades, piezas, ingresos, ' +
+  'renglones, extras, peticiones, ingreso_por_unidad',
+  'periodo');
+
+export const traerGuisadoMes = () => traerTodo(
+  'dc_v_t_guisado_mes',
+  'periodo, guisado, unidades_atribuidas, unidades_presencia, renglones',
+  'periodo');
+
+export const traerModificadorMes = () => traerTodo(
+  'dc_v_t_modificador_mes',
+  'periodo, tipo, modificador, veces, renglones, unidades_afectadas',
+  'periodo');
+
+export const traerPrecios = () => traerTodo(
+  'dc_v_t_precios',
+  'periodo, producto, precio_lista, confianza, unidades',
+  'periodo');
+
+// ─── agregados por rango ─────────────────────────────────────────────────────
+//
+// Se calculan en el servidor, no en el navegador. Un agregado por producto y
+// día serían 43,304 renglones —varios megabytes cada vez que se abre la
+// página—, mientras que con el índice por fecha el servidor los agrega en 7
+// milisegundos para una semana y 265 para un año.
+
+async function rango(fn, desde, hasta) {
+  const { data, error } = await sb.rpc(fn, { p_desde: desde, p_hasta: hasta });
+  if (error) {
+    const e = new Error(error.message || `Falló ${fn}`);
+    e.detalle = [error.code, error.hint].filter(Boolean).join(' · ');
+    throw e;
+  }
+  return data || [];
+}
+
+export const traerProductosRango = (desde, hasta) =>
+  rango('dc_productos_rango', desde, hasta);
+
+export const traerGuisadosRango = (desde, hasta) =>
+  rango('dc_guisados_rango', desde, hasta);
+
+export const traerModificadoresRango = (desde, hasta) =>
+  rango('dc_modificadores_rango', desde, hasta);
+
 export async function traerImportaciones(limite = 10) {
   const { data, error } = await sb
     .from('dc_importaciones')

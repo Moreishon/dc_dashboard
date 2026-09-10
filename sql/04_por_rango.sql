@@ -172,50 +172,21 @@ revoke all on function dc_importar_mes(text, text, jsonb, jsonb, jsonb, jsonb) f
 grant execute on function dc_importar_mes(text, text, jsonb, jsonb, jsonb, jsonb) to authenticated;
 
 
--- -----------------------------------------------------------------------------
--- Hasta qué día llegan los datos
+-- =============================================================================
+-- NOTA SOBRE LAS VISTAS
 --
--- Son dos fechas distintas y conviene no confundirlas:
+-- Una versión anterior de este archivo también creaba dc_v_cobertura y
+-- dc_v_dias. Se quitaron de aquí a propósito.
 --
---   datos_hasta   El último día que alguna importación dice haber cubierto.
---                 Es la respuesta a "¿está al día mi información?".
+-- El problema no era que estuvieran mal, sino que estaban definidas en DOS
+-- archivos: aquí y en 06/07, con definiciones distintas. Volver a correr este
+-- archivo después de aquellos reintroducía la versión vieja de dc_v_cobertura
+-- —la que se pasaba del tiempo límite— sin ningún error a la vista.
 --
---   ultima_venta  El último día con ventas registradas. Si cerraste el lunes,
---                 este va a ser el domingo aunque los datos lleguen al lunes.
+-- Regla que vale para todo el esquema: cada objeto se define en UN solo
+-- archivo. Así los archivos se pueden volver a correr en cualquier orden sin
+-- deshacerse entre ellos.
 --
--- Cuando las dos coinciden no hay nada que pensar. Cuando difieren, la
--- diferencia son días sin ventas — normalmente días de cierre.
--- -----------------------------------------------------------------------------
-
-create or replace view dc_v_cobertura with (security_invoker = true) as
-select
-  greatest(
-    (select max(periodo_max) from dc_importaciones where estado = 'OK'),
-    (select max(fecha) from dc_ventas_detalle)
-  )                                                        as datos_hasta,
-  (select max(fecha) from dc_ventas_detalle)               as ultima_venta,
-  (select min(fecha) from dc_ventas_detalle)               as desde,
-  (select count(distinct fecha) from dc_ventas_detalle)    as dias_con_ventas,
-  (select count(*) from dc_ventas_detalle)                 as renglones;
-
-revoke all on dc_v_cobertura from anon;
-
-
--- -----------------------------------------------------------------------------
--- Qué días tienen datos, por semana
---
--- Sirve para ver de un vistazo si falta algún pedazo. Un hueco entre semanas
--- cargadas casi siempre significa que se saltó una importación.
--- -----------------------------------------------------------------------------
-
-create or replace view dc_v_dias with (security_invoker = true) as
-select
-  fecha,
-  to_char(fecha, 'YYYY-MM')                        as periodo,
-  ingresos_totales,
-  ingresos_productos,
-  recibos,
-  unidades
-from dc_ventas_dia;
-
-revoke all on dc_v_dias from anon;
+--   dc_v_cobertura  vive en 06_cobertura_rapida.sql
+--   dc_v_dias       vive en 07_agregados.sql
+-- =============================================================================
