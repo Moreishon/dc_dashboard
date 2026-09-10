@@ -23,7 +23,8 @@ set -uo pipefail
 SQL="${1:-$(dirname "$0")/../sql}"
 BASE="dc_prueba_instalacion"
 ARCHIVOS=(01_seguridad 02_ventas 03_importacion 04_por_rango
-          05_permisos 06_cobertura_rapida 07_agregados 08_rangos)
+          05_permisos 06_cobertura_rapida 07_agregados 08_rangos
+          09_cerrar_funciones)
 
 fallas=0
 

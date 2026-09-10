@@ -57,6 +57,7 @@ corre **en orden** los archivos de la carpeta `sql/`:
 | `06_cobertura_rapida.sql` | Vista de cobertura barata e índices por fecha |
 | `07_agregados.sql` | Agregados precalculados del tablero |
 | `08_rangos.sql` | Funciones que agregan por rango de fechas |
+| `09_cerrar_funciones.sql` | Cierra las funciones al rol anónimo. **Imprescindible** |
 
 Se pueden volver a correr cuantas veces haga falta, en cualquier orden: cada
 objeto se define en un solo archivo, así que ninguno deshace lo que hizo otro.
@@ -103,6 +104,29 @@ El rol vive en la tabla `dc_usuarios` y lo aplica la base de datos, no la app.
 Aunque alguien modificara el código que corre en su navegador, la base sigue
 diciendo que no.
 
+### Dos cosas que cuestan caro y no se ven leyendo el código
+
+**Una comparación con NULL no es `false`.** `dc_mi_rol()` devuelve NULL cuando
+no hay sesión, y `NULL = 'admin'` da NULL, no `false`. En PL/pgSQL un
+`if not NULL then raise exception` **no entra en la rama**: la comprobación se
+salta en silencio y la función sigue. Como las funciones son `SECURITY DEFINER`
+—corren con permisos elevados y se saltan el RLS por diseño— eso dejaba que un
+anónimo borrara ventas. Se arregló con `coalesce(..., false)` y con
+`dc_exigir()`, que comprueba paso por paso y falla ruidosamente.
+
+Las políticas de RLS **no** tienen este problema: ahí un NULL niega el acceso.
+Solo el `if` de PL/pgSQL lo interpreta como "sigue adelante".
+
+**`revoke from public` no alcanza en Supabase.** Supabase concede EXECUTE a
+`anon` y `authenticated` sobre cada función nueva del esquema `public` con
+`ALTER DEFAULT PRIVILEGES`. Ese permiso va al rol, no a `public`, así que
+revocárselo a `public` no lo quita. Hay que revocar del rol por nombre — es lo
+que hace `09_cerrar_funciones.sql`, recorriendo todas las funciones `dc_*`.
+
+Esto no salía en las pruebas locales: un Postgres sin la configuración de
+Supabase no reparte esos permisos. `pruebas/seguridad.sh` reproduce la
+condición a propósito.
+
 ## Sobre la llave que ve el navegador
 
 La llave `anon` viaja dentro del código que corre en el celular de quien usa la
@@ -134,7 +158,8 @@ src/
     Guisados.jsx     Participación, evolución y extras.
     Importar.jsx     El camino completo de una importación.
 pruebas/
-  instalacion.sh           Instala los ocho SQL desde cero, tres veces.
+  instalacion.sh           Instala los nueve SQL desde cero, tres veces.
+  seguridad.sh             Intenta romper el esquema y comprueba que no se deja.
   navegador.mjs            La app en un Chromium de verdad.
   tablero.mjs              Monta las tres pantallas con datos reales y las revisa.
   analisis.mjs             El cálculo contra las cifras del informe anual.
