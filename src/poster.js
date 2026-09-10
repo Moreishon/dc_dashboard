@@ -404,31 +404,43 @@ export function transformarDias(filasVentas, detalle) {
             unidades: 0, piezas: 0, renglones: 0 };
       porDia.set(d.fecha, x);
     }
-    x.renglones++;
     if (d.es_servicio_envio) {
+      // El envío no es un platillo: no cuenta como renglón de venta ni suma
+      // unidades. Solo aporta su ingreso, por separado.
       x.ingreso_envio += d.ingresos;
     } else {
+      x.renglones++;
       x.ingresos_productos += d.ingresos;
       x.unidades += d.cantidad;
-      x.piezas += d.piezas_equivalentes;
+      // Las piezas solo cuentan para lo que de verdad se vende por pieza:
+      // gorditas, bocoles, migadas, tacos. Las quesadillas y las enchiladas
+      // se venden por orden, y sumar sus 'piezas equivalentes' aquí daría un
+      // número que no significa nada.
+      if (d.unidad_venta === 'PIEZA') x.piezas += d.piezas_equivalentes;
     }
   }
 
+  // El reporte de Ventas solo ENRIQUECE días que ya existen en el detalle;
+  // nunca crea uno nuevo.
+  //
+  // Los dos reportes se exportan por separado y es normal que no terminen el
+  // mismo día. Si el de ventas llega más lejos, esos días traen el total del
+  // día pero ningún producto. Crearlos daría un día con cero platillos y todo
+  // el dinero atribuido a envío — un número inventado. Mejor no guardarlos y
+  // avisar que los dos archivos no coinciden.
+  const diasSoloVentas = [];
   for (const fila of filasVentas || []) {
     const v = fila.v;
     const fecha = aFechaISO(v[0]);
     if (!fecha) continue;
-    let x = porDia.get(fecha);
-    if (!x) {
-      x = { fecha, ingresos_productos: 0, ingreso_envio: 0,
-            unidades: 0, piezas: 0, renglones: 0 };
-      porDia.set(fecha, x);
-    }
+    const x = porDia.get(fecha);
+    if (!x) { diasSoloVentas.push(fecha); continue; }
     x.ingresos_totales = aNumero(v[1]);
     x.recibos = aNumero(v[3]);
     x.clientes = aNumero(v[4]);
     x.ticket_promedio = aNumero(v[5]);
   }
+  diasSoloVentas.sort();
 
   const salida = [];
   for (const x of porDia.values()) {
@@ -438,10 +450,14 @@ export function transformarDias(filasVentas, detalle) {
       ? redondear(x.ingresos_totales, 2)
       : redondear(productos + envioItem, 2);
 
-    // Lo que Poster cobró de envío por su campo nativo es lo que sobra del
-    // total una vez descontados los productos y el envío que se cobraba como
-    // item. No hay forma de sacarlo directo: solo por diferencia.
-    const envio = redondear(Math.max(envioItem, totales - productos), 2);
+    // El envío es lo que sobra del total del día una vez descontados los
+    // productos. Da igual si se cobró como item del menú o por el campo
+    // nativo de Poster: los dos mecanismos caben en esa resta, y no hay forma
+    // de separarlos más que por diferencia.
+    //
+    // Es una identidad, no una estimación: se comprobó contra los 1,106 días
+    // del histórico y cuadra en todos.
+    const envio = redondear(totales - productos, 2);
 
     salida.push({
       sucursal: SUCURSAL,
@@ -458,7 +474,7 @@ export function transformarDias(filasVentas, detalle) {
     });
   }
   salida.sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
-  return salida;
+  return { dias: salida, diasSoloVentas };
 }
 
 // ─── entrada principal ───────────────────────────────────────────────────────
@@ -485,7 +501,7 @@ export function procesar({ matrizProductos, matrizVentas, catalogos, archivo }) 
   }
 
   const t = transformarProductos(prod.filas, catalogos);
-  const dias = transformarDias(filasVentas, t.detalle);
+  const { dias, diasSoloVentas } = transformarDias(filasVentas, t.detalle);
 
   // Se parte por mes. Reindexar `_k` dentro de cada mes es necesario porque
   // el servidor reserva un bloque de id por llamada.
@@ -523,6 +539,7 @@ export function procesar({ matrizProductos, matrizVentas, catalogos, archivo }) 
     sinClasificar: t.sinClasificar,
     productosNuevos: t.productosNuevos,
     incidencias: t.incidencias,
+    diasSoloVentas,
     totales: {
       renglones: t.detalle.length,
       modificadores: t.mods.length,

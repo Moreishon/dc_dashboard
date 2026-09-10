@@ -52,6 +52,8 @@ corre en orden los tres archivos de la carpeta `sql/`:
 | `02_ventas.sql` | Las tablas de ventas y las vistas del tablero |
 | `03_importacion.sql` | La función que guarda las ventas |
 | `04_por_rango.sql` | Reemplaza esa función por una que trabaja por rango de fechas |
+| `05_permisos.sql` | Da permiso de lectura a las vistas. Vuelve a correrlo si agregas vistas |
+| `06_cobertura_rapida.sql` | Vista de cobertura barata e índices por fecha |
 
 Después crea tu usuario en **Authentication → Users** y date rol de
 administrador:
@@ -118,7 +120,9 @@ src/
     Entrar.jsx       Login.
     Importar.jsx     El camino completo de una importación.
 pruebas/
-  navegador.mjs      Prueba la app en un Chromium de verdad.
+  navegador.mjs            Prueba la app en un Chromium de verdad.
+  contra_python.mjs        Compara el detalle contra el pipeline original.
+  contra_python_dias.mjs   Compara el grano diario contra el histórico.
 ```
 
 `poster.js` está aparte a propósito: no depende del navegador ni de la base, y
@@ -153,9 +157,17 @@ Levanta un Chromium de verdad, comprueba que la pantalla de entrada funcione en
 una pantalla de celular, y —lo importante— que el parser dé exactamente los
 mismos números leyendo un archivo desde el navegador que desde Node.
 
-El parser se validó además contra el pipeline original de Python: 138,762
-renglones y 159,026 modificadores, campo por campo. Si lo modificas, vuelve a
-correr esa comparación antes de subir nada.
+El parser se validó contra el pipeline original de Python en dos niveles: el
+detalle (138,762 renglones y 159,026 modificadores, campo por campo) y el grano
+diario (los 1,106 días, con sus ingresos, unidades, piezas y renglones). Si lo
+modificas, vuelve a correr las dos comparaciones antes de subir nada.
+
+**Una consulta cara falla de forma engañosa.** Supabase cancela cualquier
+consulta que pase de unos segundos y devuelve el código `57014`. Una vista que
+recorra `dc_ventas_detalle` varias veces lo va a provocar. Cuando exista el
+grano diario, preguntarle a él: `dc_ventas_dia` tiene 1,106 renglones contra
+138,762, y para contar días, sumar ingresos o encontrar la última fecha da
+exactamente lo mismo.
 
 ## Qué falta
 

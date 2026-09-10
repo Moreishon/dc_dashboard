@@ -165,12 +165,20 @@ export async function importarMes({ periodo, archivo, detalle, mods, dia, qa }) 
  * lleguen al lunes.
  */
 export async function traerCobertura() {
+  // Se pide como lista y se toma el primero, en vez de maybeSingle(): esa
+  // variante manda una cabecera especial y falla de formas raras cuando la
+  // vista no devuelve exactamente una fila. Aquí no hace falta.
   const { data, error } = await sb
     .from('dc_v_cobertura')
     .select('datos_hasta, ultima_venta, desde, dias_con_ventas, renglones')
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data || null;
+    .limit(1);
+  if (error) {
+    const e = new Error(error.message || 'No se pudo leer la cobertura');
+    e.detalle = [error.code, error.details, error.hint]
+      .filter(Boolean).join(' · ');
+    throw e;
+  }
+  return (data && data[0]) || null;
 }
 
 export async function traerImportaciones(limite = 10) {

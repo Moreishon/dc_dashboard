@@ -564,6 +564,20 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
             </div>
           )}
 
+          {lectura.diasSoloVentas?.length > 0 && (
+            <div style={nota('aviso')}>
+              El reporte de ventas llega hasta el{' '}
+              <b>{fechaLarga(lectura.diasSoloVentas[lectura.diasSoloVentas.length - 1])}</b>
+              {lectura.diasSoloVentas.length > 1
+                ? `, ${lectura.diasSoloVentas.length} días más allá del de productos.`
+                : ', un día más allá del de productos.'}
+              {' '}Esos días se van a ignorar: traen el total del día pero ningún
+              platillo, y guardarlos pondría todo ese dinero como si fuera envío.
+              Vuelve a exportar los dos reportes con el mismo rango de fechas si
+              quieres incluirlos.
+            </div>
+          )}
+
           {(lectura.incidencias.sinFecha > 0 || lectura.incidencias.sinNumero > 0) && (
             <div style={nota('aviso')}>
               Se saltaron renglones ilegibles:{' '}

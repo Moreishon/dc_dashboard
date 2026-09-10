@@ -91,6 +91,7 @@ export default function App() {
   const [perfil, setPerfil] = useState(null);
   const [errorPerfil, setErrorPerfil] = useState('');
   const [cobertura, setCobertura] = useState(null);
+  const [errorCobertura, setErrorCobertura] = useState('');
   const { esAncho } = usarAncho();
 
   // Arranque: se pregunta si ya había sesión guardada antes de decidir qué
@@ -122,9 +123,17 @@ export default function App() {
         if (!p) setErrorPerfil('sin-alta');
         else {
           setPerfil(p); setErrorPerfil('');
-          // La cobertura no es crítica: si falla, la app sigue funcionando
-          // y simplemente no se muestra la fecha.
-          try { setCobertura(await traerCobertura()); } catch { /* sin fecha */ }
+          // La cobertura no es crítica —la app sirve sin ella— pero si falla
+          // hay que DECIRLO. Tragarse el error en silencio deja una pantalla
+          // incompleta sin ninguna pista de por qué, que es justo lo que
+          // hace imposible diagnosticarla desde fuera.
+          try {
+            setCobertura(await traerCobertura());
+            setErrorCobertura('');
+          } catch (e) {
+            setCobertura(null);
+            setErrorCobertura([e.message, e.detalle].filter(Boolean).join(' — '));
+          }
         }
       } catch (e) {
         if (vivo) setErrorPerfil(e.message);
@@ -177,6 +186,18 @@ export default function App() {
       <style>{FUENTES}</style>
       <div style={pagina(esAncho)}>
         <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir} />
+        {errorCobertura && (
+          <div style={{ padding: '20px 20px 0' }}>
+            <div style={nota('aviso')}>
+              No se pudo leer hasta qué fecha llegan los datos. Lo demás funciona
+              normal; solo falta ese indicador.
+              <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: '12px',
+                            marginTop: '8px', color: C.tinta3, wordBreak: 'break-word' }}>
+                {errorCobertura}
+              </div>
+            </div>
+          </div>
+        )}
         <Importar perfil={perfil} esAncho={esAncho}
                   cobertura={cobertura} alImportar={setCobertura} />
       </div>
