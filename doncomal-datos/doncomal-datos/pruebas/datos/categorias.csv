@@ -1,0 +1,93 @@
+producto,categoria,orden
+Bocoles,Clásicos,1
+Gorditas,Clásicos,1
+Tacos de Harina,Clásicos,1
+Tacos de Maiz,Clásicos,1
+1/2 Empanadas (2 pzas.),Antojitos,2
+1/2 Enchiladas Mixtas (4 Piezas),Antojitos,2
+1/2 Enchiladas Picositas,Antojitos,2
+1/2 Enchiladas Rojas,Antojitos,2
+1/2 Encremadas,Antojitos,2
+1/2 Enfrijoladas,Antojitos,2
+1/2 Enmoladas,Antojitos,2
+1/2 Entomatadas,Antojitos,2
+1/2 Quesadillas (2 pzas.),Antojitos,2
+Empanadas (4 pzas.),Antojitos,2
+Enchiladas Mixtas,Antojitos,2
+Enchiladas Picositas,Antojitos,2
+Enchiladas Rojas,Antojitos,2
+Encremadas,Antojitos,2
+Enfrijoladas,Antojitos,2
+Enmoladas,Antojitos,2
+Entomatadas,Antojitos,2
+Migada Guisado Normal,Antojitos,2
+Migada Guisado de Carne,Antojitos,2
+Quesadillas (4 pzas.),Antojitos,2
+Guisado Infantil,Platillos,3
+Huevos Rancheros,Platillos,3
+Huevos a la Mexicana,Platillos,3
+Huevos con Deshebrada,Platillos,3
+Orden Huevos Estrellados,Platillos,3
+Orden Huevos Revueltos,Platillos,3
+Orden de Guisado Normal,Platillos,3
+Orden de Guisado de Carne,Platillos,3
+Besitos de Nuez,Postres,4
+Bisquet,Postres,4
+Brownie Oreo,Postres,4
+Gorditas de Azúcar,Postres,4
+Panqué de Elote,Postres,4
+Pieza de Pan Dulce,Postres,4
+Plátano Frito,Postres,4
+Café Negro,Bebidas,5
+Café con Leche,Bebidas,5
+Ciel 600 ml.,Bebidas,5
+Fuze Tea,Bebidas,5
+Horchata 1 Litro,Bebidas,5
+Horchata Vaso,Bebidas,5
+Jamaica 1 Litro,Bebidas,5
+Jamaica Vaso,Bebidas,5
+Jugo Naranja 1 Litro,Bebidas,5
+Jugo Naranja Vaso,Bebidas,5
+Limón 1 Litro,Bebidas,5
+Limón Vaso,Bebidas,5
+Refresco 355 ml.,Bebidas,5
+Refresco 600 ml.,Bebidas,5
+Topo Chico 600 ml.,Bebidas,5
+Té de Manzanilla,Bebidas,5
+Aguacate Extra,Extras,6
+Bistec 1 Pza.,Extras,6
+Huevo Estrellado 2 pzas.,Extras,6
+Huevo Revuelto 2 pzas.,Extras,6
+Pieza Enchilada Picosa,Extras,6
+Pieza Enchilada Roja,Extras,6
+Pieza Encremada,Extras,6
+Pieza Enfrijolada,Extras,6
+Pieza Enmolada,Extras,6
+Pieza Entomatada,Extras,6
+Pieza Extra Empanada,Extras,6
+Pieza Extra Quesadilla,Extras,6
+Pieza Huevo Estrellado Ciego,Extras,6
+Pieza Huevo Estrellado Cocido,Extras,6
+Pieza Huevo Estrellado Medio,Extras,6
+Pieza Huevo Estrellado Tierno,Extras,6
+Pieza Tortilla de Harina,Extras,6
+Pieza Tortilla de Maíz,Extras,6
+Pieza de Pan,Extras,6
+Porción Ensalada,Extras,6
+Porción Frijol con Queso,Extras,6
+Porción Leche,Extras,6
+Salsa Habanera,Extras,6
+Salsa Roja,Extras,6
+Salsa Verde,Extras,6
+Zanahorias p/llevar,Extras,6
+Bocoles Surtidos,Combos,7
+Gorditas Surtidas,Combos,7
+PROMO 6 surtidas,Combos,7
+Tacos Harina Surtidos,Combos,7
+Tacos Maíz Surtidos,Combos,7
+10 Lts. Agua Fresca de Sabor,Eventos,8
+5 Lts. Aguade Jamaica,Eventos,8
+Agua de Jamaica - Evento,Eventos,8
+Paq. 5 Gorditas Surtidas EVENTO,Eventos,8
+Paquetes - Evento,Eventos,8
+Servicio a Dom.,Servicio,9

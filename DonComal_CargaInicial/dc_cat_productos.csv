@@ -1,0 +1,93 @@
+producto,familia,unidad_venta,piezas_por_orden,lleva_guisado,activo
+Gorditas,Gordita,PIEZA,1,true,true
+Bocoles,Bocol,PIEZA,1,true,true
+Tacos de Harina,Taco,PIEZA,1,true,true
+Tacos de Maiz,Taco,PIEZA,1,true,true
+Café con Leche,Bebida,ORDEN,1,false,true
+Refresco 600 ml.,Bebida,ORDEN,1,false,true
+Jamaica Vaso,Bebida,ORDEN,1,false,true
+Limón Vaso,Bebida,ORDEN,1,false,true
+Migada Guisado de Carne,Migada,PIEZA,1,true,true
+Café Negro,Bebida,ORDEN,1,false,true
+Quesadillas (4 pzas.),Quesadilla,ORDEN,4,false,true
+Horchata Vaso,Bebida,ORDEN,1,false,true
+1/2 Enchiladas Rojas,Enchilada,ORDEN,1,false,true
+Servicio a Dom.,Servicio,ORDEN,1,false,true
+1/2 Entomatadas,Entomatada,ORDEN,1,false,true
+Empanadas (4 pzas.),Empanada,ORDEN,4,true,true
+Enchiladas Rojas,Enchilada,ORDEN,1,false,true
+Entomatadas,Entomatada,ORDEN,1,false,true
+Refresco 355 ml.,Bebida,ORDEN,1,false,true
+1/2 Quesadillas (2 pzas.),Quesadilla,ORDEN,2,false,true
+Jamaica 1 Litro,Bebida,ORDEN,1,false,true
+1/2 Empanadas (2 pzas.),Empanada,ORDEN,2,true,true
+Ciel 600 ml.,Bebida,ORDEN,1,false,true
+Jugo Naranja Vaso,Bebida,ORDEN,1,false,true
+Limón 1 Litro,Bebida,ORDEN,1,false,true
+Gorditas de Azúcar,Gordita,PIEZA,1,false,true
+PROMO 6 surtidas,Otros,ORDEN,1,false,true
+Plátano Frito,Otros,ORDEN,1,false,true
+Horchata 1 Litro,Bebida,ORDEN,1,false,true
+Enmoladas,Enmolada,ORDEN,1,false,true
+Enchiladas Picositas,Enchilada,ORDEN,1,false,true
+Huevos a la Mexicana,Huevos,ORDEN,1,false,true
+Gorditas Surtidas,Gordita,PIEZA,1,true,true
+1/2 Enmoladas,Enmolada,ORDEN,1,false,true
+1/2 Enchiladas Picositas,Enchilada,ORDEN,1,false,true
+Migada Guisado Normal,Migada,PIEZA,1,true,true
+Bisquet,Otros,ORDEN,1,false,true
+Enchiladas Mixtas,Enchilada,ORDEN,1,false,true
+1/2 Encremadas,Encremada,ORDEN,1,false,true
+Huevos con Deshebrada,Huevos,ORDEN,1,false,true
+Pieza de Pan Dulce,Guarnicion,ORDEN,1,false,true
+Encremadas,Encremada,ORDEN,1,false,true
+1/2 Enfrijoladas,Enfrijolada,ORDEN,1,false,true
+Pieza Tortilla de Maíz,Guarnicion,ORDEN,1,false,true
+Fuze Tea,Bebida,ORDEN,1,false,true
+Pieza Tortilla de Harina,Guarnicion,ORDEN,1,false,true
+Huevos Rancheros,Huevos,ORDEN,1,false,true
+Orden de Guisado Normal,Guarnicion,ORDEN,1,false,true
+Enfrijoladas,Enfrijolada,ORDEN,1,false,true
+Jugo Naranja 1 Litro,Bebida,ORDEN,1,false,true
+Orden de Guisado de Carne,Guarnicion,ORDEN,1,false,true
+1/2 Enchiladas Mixtas (4 Piezas),Enchilada,ORDEN,4,false,true
+Orden Huevos Estrellados,Huevos,ORDEN,1,false,true
+Pieza Extra Empanada,Empanada,ORDEN,1,false,true
+Pieza de Pan,Guarnicion,ORDEN,1,false,true
+Aguacate Extra,Otros,ORDEN,1,false,true
+Huevo Estrellado 2 pzas.,Huevos,ORDEN,1,false,true
+Pieza Extra Quesadilla,Quesadilla,ORDEN,1,false,true
+Topo Chico 600 ml.,Bebida,ORDEN,1,false,true
+Porción Frijol con Queso,Guarnicion,ORDEN,1,false,true
+Zanahorias p/llevar,Otros,ORDEN,1,false,true
+Bocoles Surtidos,Bocol,PIEZA,1,true,true
+Salsa Habanera,Guarnicion,ORDEN,1,false,true
+Pieza Huevo Estrellado Cocido,Huevos,ORDEN,1,false,true
+Pieza Huevo Estrellado Tierno,Huevos,ORDEN,1,false,true
+Orden Huevos Revueltos,Huevos,ORDEN,1,false,true
+Pieza Huevo Estrellado Medio,Huevos,ORDEN,1,false,true
+Bistec 1 Pza.,Otros,ORDEN,1,false,true
+Salsa Roja,Guarnicion,ORDEN,1,false,true
+Huevo Revuelto 2 pzas.,Huevos,ORDEN,1,false,true
+Salsa Verde,Guarnicion,ORDEN,1,false,true
+Porción Ensalada,Guarnicion,ORDEN,1,false,true
+Guisado Infantil,Otros,ORDEN,1,false,true
+Té de Manzanilla,Bebida,ORDEN,1,false,true
+Pieza Enchilada Roja,Enchilada,ORDEN,1,false,true
+Pieza Encremada,Encremada,ORDEN,1,false,true
+Pieza Entomatada,Entomatada,ORDEN,1,false,true
+Pieza Enmolada,Enmolada,ORDEN,1,false,true
+Tacos Maíz Surtidos,Taco,PIEZA,1,true,true
+Pieza Enchilada Picosa,Enchilada,ORDEN,1,false,true
+Pieza Huevo Estrellado Ciego,Huevos,ORDEN,1,false,true
+Porción Leche,Guarnicion,ORDEN,1,false,true
+Brownie Oreo,Postre,ORDEN,1,false,true
+Tacos Harina Surtidos,Taco,PIEZA,1,true,true
+Pieza Enfrijolada,Guarnicion,ORDEN,1,false,true
+Besitos de Nuez,Postre,ORDEN,1,false,true
+Panqué de Elote,Postre,ORDEN,1,false,true
+Paquetes - Evento,Evento,ORDEN,1,false,true
+Agua de Jamaica - Evento,Evento,ORDEN,1,false,true
+Paq. 5 Gorditas Surtidas EVENTO,Evento,PIEZA,5,true,true
+5 Lts. Aguade Jamaica,Bebida,ORDEN,1,false,true
+10 Lts. Agua Fresca de Sabor,Bebida,ORDEN,1,false,true
