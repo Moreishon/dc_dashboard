@@ -259,6 +259,76 @@ export const traerGuisadosRango = (desde, hasta) =>
 export const traerModificadoresRango = (desde, hasta) =>
   rango('dc_modificadores_rango', desde, hasta);
 
+/**
+ * Los extras que van DENTRO del platillo: porciones pedidas y, cuando se puede
+ * estimar, cuánto se cobró por ellas.
+ *
+ * El ingreso que devuelve NO es dinero nuevo: ya está contado dentro del precio
+ * del platillo al que se le puso. Es un desglose de lo que ya vendiste, no algo
+ * que sumar aparte. La pantalla lo dice explícitamente, porque sumarlo al total
+ * sería contarlo dos veces.
+ */
+export const traerExtrasRango = (desde, hasta) =>
+  rango('dc_extras_rango', desde, hasta);
+
+// ─── catálogo y categorías ───────────────────────────────────────────────────
+
+export async function traerCategorias() {
+  const { data, error } = await sb
+    .from('dc_cat_categorias')
+    .select('categoria, orden, activa')
+    .eq('activa', true)
+    .order('orden');
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/** Todos los productos del catálogo, con lo que llevan vendido. */
+export async function traerCatalogoProductos() {
+  const { data, error } = await sb
+    .from('dc_v_catalogo')
+    .select('producto, familia, categoria, unidad_venta, guisados_incluidos, activo, ' +
+            'unidades, ingresos, renglones, ultima_venta, primera_venta')
+    .order('unidades', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+/**
+ * Cambia la categoría de un producto. Pasa por una función y no por un update
+ * directo para que la base compruebe el rol y que la categoría exista: un
+ * nombre mal escrito no daría error, solo crearía una sección fantasma.
+ */
+export async function guardarCategoria(producto, categoria) {
+  const { error } = await sb.rpc('dc_guardar_categoria', {
+    p_producto: producto,
+    p_categoria: categoria || null,
+  });
+  if (error) {
+    const e = new Error(error.message || 'No se pudo guardar la categoría');
+    e.detalle = [error.code, error.hint].filter(Boolean).join(' · ');
+    throw e;
+  }
+}
+
+/**
+ * Cuántos guisados trae el precio de un producto.
+ *
+ * Importa para los extras: el guisado que pasa de los incluidos se cobra, y eso
+ * es una regla de negocio que Octavio sabe y los datos no. Una gordita incluye
+ * uno; una migada, dos.
+ */
+export async function guardarGuisadosIncluidos(producto, cuantos) {
+  const { error } = await sb.rpc('dc_guardar_guisados', {
+    p_producto: producto, p_cuantos: cuantos,
+  });
+  if (error) {
+    const e = new Error(error.message || 'No se pudo guardar');
+    e.detalle = [error.code, error.hint].filter(Boolean).join(' · ');
+    throw e;
+  }
+}
+
 export async function traerImportaciones(limite = 10) {
   const { data, error } = await sb
     .from('dc_importaciones')

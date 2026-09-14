@@ -15,7 +15,7 @@
 // a cada letra. Pasó en la app de compras y costó encontrarlo.
 // =============================================================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   sesionActual, alCambiarSesion, miPerfil, salir, traerCobertura,
   traerDias, traerProductoMes, traerGuisadoMes, traerModificadorMes,
@@ -31,11 +31,13 @@ import Importar from './pantallas/Importar.jsx';
 import Resumen from './pantallas/Resumen.jsx';
 import Productos from './pantallas/Productos.jsx';
 import Guisados from './pantallas/Guisados.jsx';
+import Catalogo from './pantallas/Catalogo.jsx';
 
 const PESTANAS = [
   { id: 'resumen', nombre: 'Resumen' },
   { id: 'productos', nombre: 'Productos' },
   { id: 'guisados', nombre: 'Guisados' },
+  { id: 'catalogo', nombre: 'Catálogo' },
   { id: 'importar', nombre: 'Importar' },
 ];
 
@@ -68,7 +70,7 @@ function Cargando({ texto }) {
 // "Datos". En celular no: ahí va solo el isotipo, que es la pieza que sigue
 // siendo reconocible a 28 píxeles, y el nombre de la app se cae porque compite
 // con la fecha de corte, que sí es información.
-function Encabezado({ perfil, cobertura, onSalir, esAncho }) {
+function Encabezado({ perfil, cobertura, onSalir, onRefrescar, refrescando, esAncho }) {
   return (
     <div style={encabezado}>
       <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: '11px' }}>
@@ -93,12 +95,25 @@ function Encabezado({ perfil, cobertura, onSalir, esAncho }) {
         </div>
       )}
 
-      <button onClick={onSalir}
-        style={{ background: 'none', border: '1px solid #2A2A2A', borderRadius: '8px',
-                 color: C.tinta4, cursor: 'pointer', fontSize: '13px',
-                 fontFamily: 'inherit', padding: '7px 12px', flex: 'none' }}>
-        Salir
-      </button>
+      <div style={{ display: 'flex', gap: '7px', flex: 'none' }}>
+        {/* Refrescar existe porque los datos se traen UNA vez al entrar, para
+            que navegar entre pestañas no toque la red. El precio de eso es que
+            un cambio hecho desde otro lado —o desde otro dispositivo— no se ve
+            hasta recargar. Antes había que cerrar sesión y volver a entrar. */}
+        <button onClick={onRefrescar} disabled={refrescando} title="Volver a traer los datos"
+          style={{ background: 'none', border: '1px solid #2A2A2A', borderRadius: '8px',
+                   color: refrescando ? '#5A4B44' : C.tinta4,
+                   cursor: refrescando ? 'default' : 'pointer', fontSize: '13px',
+                   fontFamily: 'inherit', padding: '7px 12px', whiteSpace: 'nowrap' }}>
+          {refrescando ? 'Trayendo…' : (esAncho ? 'Refrescar' : '⟳')}
+        </button>
+        <button onClick={onSalir}
+          style={{ background: 'none', border: '1px solid #2A2A2A', borderRadius: '8px',
+                   color: C.tinta4, cursor: 'pointer', fontSize: '13px',
+                   fontFamily: 'inherit', padding: '7px 12px' }}>
+          Salir
+        </button>
+      </div>
     </div>
   );
 }
@@ -141,6 +156,7 @@ export default function App() {
   const [datos, setDatos] = useState(null);
   const [errorDatos, setErrorDatos] = useState('');
   const [rango, setRango] = useState(null);
+  const [refrescando, setRefrescando] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -167,17 +183,8 @@ export default function App() {
         if (!vivo) return;
         if (!p) { setErrorPerfil('sin-alta'); return; }
         setPerfil(p); setErrorPerfil('');
-
-        // La cobertura no es crítica —la app sirve sin ella— pero si falla hay
-        // que DECIRLO. Un catch vacío deja una pantalla incompleta sin ninguna
-        // pista de por qué, y eso es imposible de diagnosticar desde fuera.
-        try {
-          setCobertura(await traerCobertura());
-          setErrorCobertura('');
-        } catch (e) {
-          setCobertura(null);
-          setErrorCobertura([e.message, e.detalle].filter(Boolean).join(' — '));
-        }
+        // La cobertura ya no se pide aquí: la trae recargar(), junto con todo
+        // lo demás, para que no haya dos caminos que la actualicen.
       } catch (e) {
         if (vivo) setErrorPerfil(e.message);
       }
@@ -185,24 +192,37 @@ export default function App() {
     return () => { vivo = false; };
   }, [sesion]);
 
-  // Los datos del tablero: una sola vez, todos juntos.
-  useEffect(() => {
+  // Los datos del tablero: todos juntos, y en una función que se puede volver a
+  // llamar. Antes esto vivía suelto dentro de un useEffect y solo corría al
+  // entrar; después de importar un archivo, el tablero seguía enseñando lo de
+  // antes y la única salida era cerrar sesión.
+  const recargar = useCallback(async ({ reanclar = false } = {}) => {
     if (!perfil) return;
-    let vivo = true;
-    (async () => {
-      try {
-        const [dias, productoMes, guisadoMes, modificadorMes] = await Promise.all([
-          traerDias(), traerProductoMes(), traerGuisadoMes(), traerModificadorMes(),
-        ]);
-        if (!vivo) return;
-        setDatos({ dias, productoMes, guisadoMes, modificadorMes });
-        setErrorDatos('');
-      } catch (e) {
-        if (vivo) setErrorDatos(e.message);
-      }
-    })();
-    return () => { vivo = false; };
+    setRefrescando(true);
+    try {
+      const [dias, productoMes, guisadoMes, modificadorMes] = await Promise.all([
+        traerDias(), traerProductoMes(), traerGuisadoMes(), traerModificadorMes(),
+      ]);
+      setDatos({ dias, productoMes, guisadoMes, modificadorMes });
+      setErrorDatos('');
+      // 'reanclar' lo usa la importación: si el archivo trajo días nuevos, el
+      // periodo elegido se vuelve a calcular sobre el último día CON DATOS. Sin
+      // esto, subes la semana nueva y el tablero se queda mirando la anterior.
+      if (reanclar) setRango(null);
+    } catch (e) {
+      setErrorDatos(e.message);
+    }
+    // La cobertura va aparte: no es crítica y si falla, lo demás sigue.
+    try {
+      setCobertura(await traerCobertura());
+      setErrorCobertura('');
+    } catch (e) {
+      setErrorCobertura([e.message, e.detalle].filter(Boolean).join(' — '));
+    }
+    setRefrescando(false);
   }, [perfil]);
+
+  useEffect(() => { recargar(); }, [recargar]);
 
   const periodos = useMemo(() => {
     if (!datos?.dias?.length) return [];
@@ -232,6 +252,7 @@ export default function App() {
       <style>{FUENTES}</style>
       <div style={pagina(esAncho)}>
         <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir}
+                    onRefrescar={() => recargar()} refrescando={refrescando}
                     esAncho={esAncho} />
         {contenido}
       </div>
@@ -264,13 +285,14 @@ export default function App() {
   if (!datos && !errorDatos) return <Cargando texto="Trayendo tres años de ventas…" />;
 
   const puedeImportar = perfil.rol === 'admin' || perfil.rol === 'gerente';
-  const enTablero = pestana !== 'importar';
+  const enTablero = pestana !== 'importar' && pestana !== 'catalogo';
 
   return (
     <>
       <style>{FUENTES}</style>
       <div style={pagina(esAncho)}>
         <Encabezado perfil={perfil} cobertura={cobertura} onSalir={salir}
+                    onRefrescar={() => recargar()} refrescando={refrescando}
                     esAncho={esAncho} />
         {/* Las pestañas y el selector se pegan arriba JUNTOS, dentro de un
             solo contenedor. Por separado los dos pedirían top:0 y se
@@ -319,9 +341,11 @@ export default function App() {
           <Guisados rango={rango} esAncho={esAncho}
                     guisadoMes={datos.guisadoMes} periodos={periodos} />
         )}
+        {pestana === 'catalogo' && <Catalogo perfil={perfil} />}
         {pestana === 'importar' && (
           <Importar perfil={perfil} esAncho={esAncho}
-                    cobertura={cobertura} alImportar={setCobertura} />
+                    cobertura={cobertura}
+                    alImportar={() => recargar({ reanclar: true })} />
         )}
       </div>
     </>

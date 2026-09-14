@@ -17,7 +17,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { comparaciones, cuantosDias } from '../rango.js';
-import { traerProductosRango } from '../datos.js';
+import { traerProductosRango, traerExtrasRango } from '../datos.js';
 import { Barras, Numeros, Delta, SERIES } from '../graficas.jsx';
 import {
   C, tarjeta, tituloTarjeta, nota, rejilla, pastilla,
@@ -93,8 +93,358 @@ function movimiento(ahora, base, { diasA, diasB, minimo = 20 }) {
   };
 }
 
+/**
+ * La lista completa, sin recortar.
+ *
+ * Las tarjetas de arriba enseñan diez porque un ranking de 82 no se lee. Pero
+ * "no se lee de corrido" no es lo mismo que "no se necesita": para saber si el
+ * producto 40 vendió algo esta semana hay que poder llegar a él. Por eso aquí
+ * están todos, y por eso esta tabla se puede ordenar.
+ *
+ * Va como tabla y no como gráfica a propósito. Una barra contesta "¿cómo
+ * viene?"; esto contesta "¿cuánto exactamente, y dónde está el que busco?".
+ */
+function TablaCompleta({ filas, total, dias }) {
+  const [orden, setOrden] = useState('ingresos');
+  const ordenadas = useMemo(() => [...filas].sort((a, b) => {
+    if (orden === 'producto') return a.producto.localeCompare(b.producto, 'es');
+    return (+b[orden] || 0) - (+a[orden] || 0);
+  }), [filas, orden]);
+
+  if (!filas.length) {
+    return <p style={{ fontSize: '13.5px', color: C.tinta3 }}>
+      No se vendió nada de esta sección en el periodo.
+    </p>;
+  }
+
+  const COLS = [
+    ['producto', 'Producto', 'left'],
+    ['unidades', 'Unidades', 'right'],
+    ['ingresos', 'Ingresos', 'right'],
+    ['porDia',   'Por día',  'right'],
+    ['parte',    '% ventas', 'right'],
+  ];
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '13px' }}>
+        <thead>
+          <tr>
+            {COLS.map(([k, t, al]) => {
+              const ordenable = k === 'producto' || k === 'unidades' || k === 'ingresos';
+              return (
+                <th key={k}
+                    onClick={ordenable ? () => setOrden(k) : undefined}
+                    style={{
+                      textAlign: al, padding: '7px 10px 7px 0', whiteSpace: 'nowrap',
+                      fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.07em',
+                      textTransform: 'uppercase',
+                      color: orden === k ? C.naranja : C.tinta4,
+                      cursor: ordenable ? 'pointer' : 'default',
+                      borderBottom: `1px solid ${C.lineaFuerte}`,
+                    }}>
+                  {t}{orden === k ? ' ▾' : ''}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {ordenadas.map((f) => (
+            <tr key={f.producto}>
+              <td style={{ padding: '7px 10px 7px 0', color: C.tinta,
+                           borderBottom: `1px solid ${C.linea}` }}>
+                {f.producto}
+                {!f.categoria && (
+                  <span style={{ color: C.rojo, fontSize: '11px', marginLeft: '7px' }}>
+                    sin categoría
+                  </span>
+                )}
+              </td>
+              {[numero(f.unidades),
+                pesosExactos(f.ingresos),
+                // Por día, con un decimal: para comparar periodos de distinto
+                // largo sin pensarle. Redondeado a entero, todo lo que vende
+                // menos de una unidad al día saldría en cero — que es la mitad
+                // del catálogo y justo lo que uno quiere ver aquí.
+                dias ? ((+f.unidades || 0) / dias).toFixed(1) : '—',
+                `${total ? ((f.ingresos / total) * 100).toFixed(1) : 0}%`,
+              ].map((v, i) => (
+                <td key={i} style={{ textAlign: 'right', padding: '7px 10px 7px 0',
+                                     color: C.tinta2, whiteSpace: 'nowrap',
+                                     fontVariantNumeric: 'tabular-nums',
+                                     borderBottom: `1px solid ${C.linea}` }}>{v}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Los extras que van DENTRO del platillo.
+ *
+ * Bistec, Queso, Frijoles, Huevo Revuelto, Relleno de Guisados. No son
+ * productos: no tienen renglón propio ni ingreso propio, van sumados al precio
+ * del platillo al que se los pusieron.
+ *
+ * Tres cosas que esta tarjeta hace y ninguna es obvia
+ * --------------------------------------------------
+ * **El dinero NO se suma al total.** Ya está contado dentro del platillo. Lo
+ * que se enseña es un desglose —"de lo que vendiste, tanto vino de extras"—, no
+ * un ingreso aparte. Sumarlo al reparto por sección sería contarlo dos veces, y
+ * por eso vive en su propia tarjeta y no en la gráfica de arriba.
+ *
+ * **El precio es estimado, y se dice cuánto.** Nadie lo capturó: sale de
+ * comparar un renglón que lleva ese extra contra el precio de lista del mismo
+ * producto en el mismo mes. La confianza es qué proporción de los casos cayó en
+ * el valor elegido; abajo de 0.8 el número se marca.
+ *
+ * **Lo que no es un extra, se aparta.** Queso y Frijoles son guisado en unos
+ * productos y extra en otros. Cuando la regla los etiqueta mal —el queso de las
+ * empanadas es el relleno, no un extra— sale como "nunca se cobra". Esos van
+ * en su propio bloque, en vez de arrastrar el promedio a cero.
+ */
+/**
+ * Un precio, o un rango cuando el mismo extra cuesta distinto según el
+ * platillo. El rango no es un defecto del cálculo: el guiso de más cuesta $8 en
+ * gorditas y $5 en bocoles, y aplanarlo a un promedio inventaría un precio que
+ * no existe en ningún lado.
+ */
+function precioDeExtra(f) {
+  if (f.precio_min == null) return null;
+  const a = +f.precio_min, b = +f.precio_max;
+  return a === b ? `$${a.toFixed(0)}` : `$${a.toFixed(0)}–${b.toFixed(0)}`;
+}
+
+/**
+ * Un extra, con su desglose si es un grupo.
+ *
+ * Va FUERA de ExtrasDelPlatillo, como todos los componentes de este proyecto.
+ * Definido adentro, React lo trataría como un componente distinto en cada
+ * render y desmontaría el desplegable justo al abrirlo.
+ */
+function RenglonExtra({ f, dentro, miembros, abierto, alternar }) {
+  const hijos = miembros.get(f.extra) || [];
+  const esGrupo = f.es_grupo && hijos.length > 0;
+  const p = precioDeExtra(f);
+  return (
+    <div style={{
+      padding: dentro ? '7px 0 7px 20px' : '10px 0',
+      borderBottom: dentro ? 'none' : `1px solid ${C.linea}`,
+      borderLeft: dentro ? `2px solid ${C.linea}` : 'none',
+      marginLeft: dentro ? '8px' : 0,
+    }}>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline' }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: dentro ? '13px' : '14.5px',
+                       color: dentro ? C.tinta2 : C.tinta,
+                       fontWeight: dentro ? 400 : 500 }}>
+          {f.extra}
+          {f.es_segundo_guiso && (
+            <span style={{ fontSize: '11px', color: C.naranjaHondo,
+                           marginLeft: '7px', fontWeight: 600 }}>
+              guiso de más
+            </span>
+          )}
+        </span>
+        <span style={{ flex: 'none', fontSize: dentro ? '13px' : '14px',
+                       fontWeight: dentro ? 400 : 700,
+                       fontVariantNumeric: 'tabular-nums' }}>
+          {numero(f.porciones)}
+        </span>
+      </div>
+      <div style={{ fontSize: '11.5px', color: C.tinta4, marginTop: '2px' }}>
+        en {numero(f.pedidos)} {+f.pedidos === 1 ? 'pedido' : 'pedidos'}
+        {+f.porciones_cobrables < +f.porciones && (
+          <> · {numero(f.porciones_cobrables)} como extra,
+             {' '}{numero(+f.porciones - +f.porciones_cobrables)} como guiso</>
+        )}
+        {p
+          ? <> · {p} c/u ≈ {pesos(f.ingreso_estimado)}
+              {+f.confianza < 0.8 && (
+                <span style={{ color: C.aviso, fontWeight: 600 }}>
+                  {' '}· precio poco firme
+                </span>)}
+            </>
+          : <span> · sin precio estimable</span>}
+      </div>
+      {esGrupo && (
+        <button onClick={() => alternar(f.extra)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer',
+                   fontFamily: 'inherit', fontSize: '12px', fontWeight: 600,
+                   color: C.tinta3, padding: '5px 0 2px', display: 'flex',
+                   alignItems: 'center', gap: '5px' }}>
+          <span style={{ fontSize: '9px' }}>{abierto[f.extra] ? '▼' : '▶'}</span>
+          {abierto[f.extra] ? 'Ocultar' : `Ver los ${hijos.length} términos`}
+        </button>
+      )}
+      {esGrupo && abierto[f.extra] && hijos.map((h) => (
+        <RenglonExtra key={h.extra} f={h} dentro miembros={miembros}
+                      abierto={abierto} alternar={alternar} />
+      ))}
+    </div>
+  );
+}
+
+function ExtrasDelPlatillo({ rango, ingresosDelPeriodo }) {
+  const [filas, setFilas] = useState(null);
+  const [error, setError] = useState('');
+  const [abierto, setAbierto] = useState({});
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const d = await traerExtrasRango(rango.desde, rango.hasta);
+        if (vivo) { setFilas(d); setError(''); }
+      } catch (e) {
+        if (vivo) setError([e.message, e.detalle].filter(Boolean).join(' — '));
+      }
+    })();
+    return () => { vivo = false; };
+  }, [rango.desde, rango.hasta]);
+
+  const calc = useMemo(() => {
+    if (!filas) return null;
+    const n = (x) => +x || 0;
+    // La consulta trae dos niveles en la misma respuesta: lo que se enseña
+    // (pertenece_a nulo) y el desglose de adentro de cada grupo. Traerlos
+    // juntos evita ir a la red otra vez solo para abrir un desplegable.
+    const visibles = filas.filter((f) => !f.pertenece_a)
+                          .sort((a, b) => n(b.porciones) - n(a.porciones));
+    const miembros = new Map();
+    for (const f of filas.filter((x) => x.pertenece_a)) {
+      const l = miembros.get(f.pertenece_a) || [];
+      l.push(f);
+      miembros.set(f.pertenece_a, l);
+    }
+    for (const l of miembros.values()) l.sort((a, b) => n(b.porciones) - n(a.porciones));
+
+    const reales = visibles.filter((f) => !f.es_guiso_mal_etiquetado);
+    const dudosos = visibles.filter((f) => f.es_guiso_mal_etiquetado);
+    return {
+      reales, dudosos, miembros,
+      porciones: reales.reduce((s, f) => s + n(f.porciones), 0),
+      pedidos: reales.reduce((s, f) => s + n(f.pedidos), 0),
+      ingreso: reales.reduce((s, f) => s + n(f.ingreso_estimado), 0),
+      sinPrecio: reales.filter((f) => f.precio_min == null).length,
+      hayGuisoExtra: reales.some((f) => f.es_segundo_guiso),
+    };
+  }, [filas]);
+
+  if (error) return <div style={nota('error')}>{error}</div>;
+  if (!calc) {
+    return <div style={{ ...tarjeta(), color: C.tinta3, fontSize: '14px' }}>
+      Cargando los extras del periodo…
+    </div>;
+  }
+  if (!calc.reales.length && !calc.dudosos.length) {
+    return <Tarjeta titulo="Extras que van dentro del platillo"
+                    sub="No se registró ninguno en este periodo.">{null}</Tarjeta>;
+  }
+
+  const parte = ingresosDelPeriodo ? (calc.ingreso / ingresosDelPeriodo) * 100 : 0;
+
+  return (
+    <>
+      <Tarjeta
+        titulo="Extras que van dentro del platillo"
+        sub="Bistec, huevos, relleno, queso, frijoles, y el guiso que pasa de los incluidos. No son productos: van sumados al precio del platillo, así que no tienen renglón propio. Aquí sí se pueden contar.">
+
+        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap',
+                      alignItems: 'baseline', marginBottom: '14px' }}>
+          {[['Porciones', numero(calc.porciones)],
+            ['En pedidos', numero(calc.pedidos)],
+            ['Cobrado (estimado)', pesos(calc.ingreso)]].map(([et, v]) => (
+            <div key={et}>
+              <div style={{ fontSize: '10.5px', color: C.tinta4,
+                            textTransform: 'uppercase', letterSpacing: '0.09em',
+                            fontWeight: 700, marginBottom: '5px' }}>{et}</div>
+              <div style={{ fontSize: '24px', fontWeight: 700,
+                            letterSpacing: '-0.02em' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        {calc.reales.map((f) => (
+          <RenglonExtra key={f.extra} f={f} miembros={calc.miembros}
+                        abierto={abierto}
+                        alternar={(k) => setAbierto((a) => ({ ...a, [k]: !a[k] }))} />
+        ))}
+
+        <Numeros filas={calc.reales} columnas={[
+          { titulo: 'Extra', valor: (f) => f.extra },
+          { titulo: 'Porciones', valor: (f) => numero(f.porciones) },
+          { titulo: 'Pedidos', valor: (f) => numero(f.pedidos) },
+          { titulo: 'Cobrables', valor: (f) => numero(f.porciones_cobrables) },
+          { titulo: 'Precio est.', valor: (f) => precioDeExtra(f) || '—' },
+          { titulo: 'Confianza', valor: (f) => f.confianza != null
+              ? (+f.confianza).toFixed(2) : '—' },
+          { titulo: 'Cobrado est.', valor: (f) => f.ingreso_estimado != null
+              ? pesosExactos(f.ingreso_estimado) : '—' },
+        ]} />
+      </Tarjeta>
+
+      <div style={nota('aviso')}>
+        <b>Ese dinero no se suma a tus ventas: ya está adentro.</b> El cobro del
+        extra viaja en el precio del platillo al que se le puso, así que
+        {ingresosDelPeriodo > 0 && <>
+          {' '}los <b>{pesos(calc.ingreso)}</b> de arriba son
+          {' '}<b>{parte.toFixed(1)}%</b> de los {pesos(ingresosDelPeriodo)} del
+          periodo, no algo aparte.</>}
+        {' '}Por eso no aparecen en el reparto por sección: ahí se contarían dos
+        veces.
+        {' '}El precio es <b>estimado</b> —nadie lo captura— y sale de comparar
+        un platillo con ese extra contra el mismo platillo sin él, en el mismo
+        mes. Cuando ves un rango como <i>$5–8</i> es porque cuesta distinto según
+        el platillo, no porque el cálculo dude.
+        {calc.hayGuisoExtra && <>
+          {' '}Lo marcado como <b>guiso de más</b> es el guisado que pasa de los
+          que trae el precio: en una gordita, el segundo; en una migada, el
+          tercero, porque su precio ya incluye dos. Eso se configura en Catálogo.</>}
+        {calc.sinPrecio > 0 && <>
+          {' '}De {calc.sinPrecio} no se pudo estimar precio: se cuentan las
+          porciones y se deja el dinero en blanco, en vez de inventarlo.</>}
+      </div>
+
+      {calc.dudosos.length > 0 && (
+        <Tarjeta
+          titulo="Estos salen como extra pero parecen guiso"
+          sub="En estos productos nunca se cobran, y eso casi siempre quiere decir que no son un extra sino el relleno.">
+          {calc.dudosos.map((f) => (
+            <div key={f.extra} style={{ display: 'flex', gap: '12px',
+                                        alignItems: 'baseline', padding: '9px 0',
+                                        borderBottom: `1px solid ${C.linea}` }}>
+              <span style={{ flex: 1, fontSize: '14.5px', color: C.tinta }}>
+                {f.extra}
+              </span>
+              <span style={{ fontSize: '13px', color: C.tinta3,
+                             fontVariantNumeric: 'tabular-nums' }}>
+                {numero(f.porciones)}{' '}
+                {+f.porciones === 1 ? 'porción' : 'porciones'} · sin cobrar
+              </span>
+            </div>
+          ))}
+          <p style={{ fontSize: '13px', color: C.tinta3, marginTop: '12px',
+                      lineHeight: 1.55 }}>
+            Pasa porque el mismo nombre es guisado en unos productos y extra en
+            otros. La regla que los separa dice "es extra si ya venía un guisado
+            antes", así que en un pedido mixto —dos empanadas de deshebrada y dos
+            de queso— el segundo <b>guiso</b> queda marcado como extra. No es
+            dinero que dejaste de cobrar: es una etiqueta que no aplica ahí. Se
+            apartan para que no jalen el promedio a cero.
+          </p>
+        </Tarjeta>
+      )}
+    </>
+  );
+}
+
 export default function Productos({ rango, esAncho }) {
   const [contra, setContra] = useState('anterior');
+  const [categoria, setCategoria] = useState('todas');
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(true);
@@ -125,12 +475,35 @@ export default function Productos({ rango, esAncho }) {
 
   const calc = useMemo(() => {
     if (!datos) return null;
-    const { ahora, antes } = datos;
+
+    // El reparto por categoría se calcula SIEMPRE sobre todo el periodo, no
+    // sobre lo filtrado: si se recalculara con el filtro puesto, la categoría
+    // elegida saldría siempre con el 100% y el reparto dejaría de decir nada.
+    const porCategoria = new Map();
+    let totalPeriodo = 0;
+    for (const f of datos.ahora) {
+      const k = f.categoria || 'Sin categoría';
+      const a = porCategoria.get(k) || { categoria: k, productos: 0, unidades: 0, ingresos: 0 };
+      a.productos++;
+      a.unidades += +f.unidades || 0;
+      a.ingresos += +f.ingresos || 0;
+      porCategoria.set(k, a);
+      totalPeriodo += +f.ingresos || 0;
+    }
+    const categorias = [...porCategoria.values()].sort((a, b) => b.ingresos - a.ingresos);
+    const hayCategorias = datos.ahora.some((f) => f.categoria);
+
+    const de = (filas) => categoria === 'todas' ? filas
+      : filas.filter((f) => (f.categoria || 'Sin categoría') === categoria);
+
+    const ahora = de(datos.ahora);
+    const antes = de(datos.antes);
     const total = ahora.reduce((s, f) => s + (+f.ingresos || 0), 0);
     const unidades = ahora.reduce((s, f) => s + (+f.unidades || 0), 0);
 
     const porDinero = [...ahora].sort((a, b) => b.ingresos - a.ingresos).slice(0, 12);
     const porVolumen = [...ahora].sort((a, b) => b.unidades - a.unidades).slice(0, 12);
+    const completo = [...ahora].sort((a, b) => b.ingresos - a.ingresos);
 
     const diasA = cuantosDias(rango.desde, rango.hasta);
     const diasB = cuantosDias(base.desde, base.hasta);
@@ -138,11 +511,12 @@ export default function Productos({ rango, esAncho }) {
 
     return {
       total, unidades, cuantos: ahora.length, diasA, diasB, normaliza,
-      porDinero, porVolumen,
+      porDinero, porVolumen, completo,
+      categorias, hayCategorias, totalPeriodo,
       ...movimiento(ahora, antes, { diasA, diasB }),
       hayBase: antes.length > 0,
     };
-  }, [datos, rango, base]);
+  }, [datos, rango, base, categoria]);
 
   return (
     <div style={{ padding: '18px',
@@ -172,6 +546,58 @@ export default function Productos({ rango, esAncho }) {
               </div>
             ))}
           </div>
+
+          {calc.hayCategorias && (
+            <Tarjeta titulo="De dónde sale el dinero"
+                     sub="Las secciones del menú en el periodo. Es el reparto completo — no cambia cuando filtras abajo, para que siempre se pueda ver contra el total.">
+              {/* Nunca se repite un color. La paleta tiene seis y las secciones
+                  pueden ser más: de la séptima en adelante van en gris, que es
+                  honesto —"esta no tiene identidad propia"— mientras que volver
+                  a empezar la paleta haría que Extras se viera igual que
+                  Antojitos y se leyeran como lo mismo. */}
+              <Barras datos={calc.categorias.map((c, i) => ({
+                etiqueta: c.categoria,
+                valor: c.ingresos,
+                color: c.categoria === 'Sin categoría' ? C.rojo
+                     : i < SERIES.length ? SERIES[i] : '#BCADA2',
+                nota: `${numero(c.unidades)} unidades · ${c.productos} productos · ${
+                  calc.totalPeriodo ? Math.round((c.ingresos / calc.totalPeriodo) * 100) : 0}% de las ventas`,
+              }))} formato={pesos} />
+              <Numeros filas={calc.categorias} columnas={[
+                { titulo: 'Categoría', valor: (f) => f.categoria },
+                { titulo: 'Productos', valor: (f) => numero(f.productos) },
+                { titulo: 'Unidades', valor: (f) => numero(f.unidades) },
+                { titulo: 'Ingresos', valor: (f) => pesosExactos(f.ingresos) },
+                { titulo: '% ventas', valor: (f) => `${calc.totalPeriodo
+                  ? ((f.ingresos / calc.totalPeriodo) * 100).toFixed(1) : 0}%` },
+              ]} />
+            </Tarjeta>
+          )}
+
+          {calc.hayCategorias && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px',
+                          margin: '0 0 14px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12.5px', color: C.tinta4 }}>Ver solo</span>
+              <button onClick={() => setCategoria('todas')}
+                      style={pastilla(categoria === 'todas')}>Todo el menú</button>
+              {calc.categorias.map((c) => (
+                <button key={c.categoria} onClick={() => setCategoria(c.categoria)}
+                        style={pastilla(categoria === c.categoria,
+                          c.categoria === 'Sin categoría' && categoria !== c.categoria
+                            ? { color: C.rojo } : undefined)}>
+                  {c.categoria}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!calc.hayCategorias && (
+            <div style={nota('aviso')}>
+              Todavía no hay categorías puestas. En la pestaña <b>Catálogo</b> se
+              clasifica cada producto por sección del menú, y en cuanto lo hagas
+              este corte aparece solo — sin volver a importar nada.
+            </div>
+          )}
 
           <div style={rejilla(esAncho, '330px')}>
             <Tarjeta titulo="Los que más dinero dejan"
@@ -270,6 +696,21 @@ export default function Productos({ rango, esAncho }) {
                 </Tarjeta>
               </div>
             </>
+          )}
+
+          <Tarjeta
+            titulo={categoria === 'todas'
+              ? `Todos los productos (${calc.cuantos})`
+              : `${categoria} · ${calc.cuantos} ${calc.cuantos === 1 ? 'producto' : 'productos'}`}
+            sub="La lista completa del periodo, de mayor a menor ingreso. Las de arriba son los primeros diez; esta no recorta nada.">
+            <TablaCompleta filas={calc.completo} total={calc.total} dias={calc.diasA} />
+          </Tarjeta>
+
+          {/* Los extras que van dentro del platillo. Se enseñan con el menú
+              completo y al filtrar por Extras, que es donde se buscan; con
+              Bebidas o Postres puestos serían ruido. */}
+          {(categoria === 'todas' || categoria === 'Extras') && (
+            <ExtrasDelPlatillo rango={rango} ingresosDelPeriodo={calc.totalPeriodo} />
           )}
         </>
       )}

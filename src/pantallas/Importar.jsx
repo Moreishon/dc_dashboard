@@ -24,7 +24,7 @@ import {
 } from '../datos.js';
 import {
   C, tarjeta, etiqueta, campo, boton, botonSecundario, botonApagado,
-  nota, rejilla, pesos, numero, nombreMes, fechaLarga, fechaCorta,
+  nota, rejilla, pesos, numero, nombreMes, fechaLarga, fechaCorta, rangoLegible,
 } from '../estilo.js';
 
 // ─── piezas sueltas, fuera del componente para que React no las remonte ──────
@@ -60,6 +60,17 @@ function Paso({ n, de, texto }) {
   );
 }
 
+/** Cuántos días distintos trae el archivo, contando solo los que tienen ventas. */
+function diasEntreFechas(desde, hasta) {
+  if (!desde || !hasta) return 0;
+  const [a1, m1, d1] = desde.split('-').map(Number);
+  const [a2, m2, d2] = hasta.split('-').map(Number);
+  // Date a mediodía: en UTC−6 construirlo a medianoche corre la fecha un día.
+  const x = new Date(a1, m1 - 1, d1, 12);
+  const y = new Date(a2, m2 - 1, d2, 12);
+  return Math.round((y - x) / 86400000) + 1;
+}
+
 function FilaMes({ mes, yaExiste }) {
   // El rango exacto que trae el archivo para este mes. Importa cuando se sube
   // por semana: no es lo mismo reemplazar el mes entero que tres días.
@@ -72,12 +83,22 @@ function FilaMes({ mes, yaExiste }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px',
                   padding: '11px 0',
                   borderBottom: `1px solid ${C.linea}` }}>
+      {/* Manda el RANGO DE FECHAS, no el mes. Octavio sube por día o por
+          semana, y encabezar con "Septiembre 2026" hacía pensar que se iba a
+          reemplazar el mes entero. Lo que se reemplaza son los días que trae el
+          archivo, y eso es lo que tiene que estar en grande. */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: '15px' }}>
-          {nombreMes(mes.periodo)}
+          {mesCompleto
+            ? nombreMes(mes.periodo)
+            : (desde === hasta
+                ? fechaLarga(desde)
+                : rangoLegible(desde, hasta))}
         </div>
         <div style={{ fontSize: '12.5px', color: C.tinta3 }}>
-          {mesCompleto ? 'mes completo' : `${fechaCorta(desde)} al ${fechaCorta(hasta)}`}
+          {mesCompleto
+            ? 'mes completo'
+            : `${diasEntreFechas(desde, hasta)} ${diasEntreFechas(desde, hasta) === 1 ? 'día' : 'días'}`}
           {' · '}{numero(mes.detalle.length)} renglones
         </div>
       </div>
@@ -126,6 +147,20 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
   const archivoVentas = useRef(null);
   const [nombreProductos, setNombreProductos] = useState('');
   const [nombreVentas, setNombreVentas] = useState('');
+  // Los archivos viven en el ESTADO, no solo en la ref del <input>.
+  //
+  // Las refs apuntan a elementos que solo existen mientras etapa === 'elegir'.
+  // En cuanto se pasa a 'leyendo' o a 'clasificar', React los desmonta y las
+  // refs quedan en null. Leerlas después de ese momento —aunque sea un
+  // milisegundo después, al otro lado de un await— devuelve nada.
+  //
+  // Eso causó dos errores distintos: el de ventas se descartaba en silencio, y
+  // volver de la pantalla de clasificar moría con "Falta el archivo de
+  // productos". Guardar el File en el estado los mata a los dos de raíz: un
+  // objeto File es válido mientras alguien lo tenga, sin importar si el campo
+  // que lo produjo sigue en pantalla.
+  const [fileProductos, setFileProductos] = useState(null);
+  const [fileVentas, setFileVentas] = useState(null);
 
   const puedeImportar = perfil && (perfil.rol === 'admin' || perfil.rol === 'gerente');
 
@@ -163,20 +198,39 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
    */
   async function leerArchivos(cat) {
     const usar = cat || catalogos;
-    const fp = archivoProductos.current?.files?.[0];
+
+    // LOS DOS ARCHIVOS SE TOMAN AQUÍ, ANTES DE CAMBIAR DE ETAPA.
+    //
+    // Esto no es estilo: es el arreglo de un error que estuvo meses vivo. Los
+    // <input type=file> solo existen mientras etapa === 'elegir'. En cuanto se
+    // llama setEtapa('leyendo'), React desmonta ese pedazo de pantalla y las
+    // dos refs quedan en null.
+    //
+    // La versión anterior tomaba el de productos antes del cambio —por eso ese
+    // sí funcionaba— y el de ventas DESPUÉS del primer 'await', cuando el
+    // <input> ya no existía. Resultado: elegías los dos archivos, veías los dos
+    // nombres en verde, y el de ventas se descartaba sin decir nada. Los días
+    // entraban sin recibos, sin clientes y con ticket promedio en $0.
+    //
+    // No se notó antes porque los tres años de historia se cargaron por CSV
+    // directo a la base, no por esta pantalla.
+    const fp = fileProductos;
+    const fv = fileVentas;
+
     if (!fp) { setError('Falta el archivo de productos.'); return; }
     if (!usar) { setError('Todavía no cargan los catálogos.'); return; }
     setError(''); setEtapa('leyendo');
 
     try {
       const matrizProductos = await matrizDe(fp);
-      const fv = archivoVentas.current?.files?.[0];
       const matrizVentas = fv ? await matrizDe(fv) : null;
 
       const r = procesar({ matrizProductos, matrizVentas, catalogos: usar, archivo: fp.name });
       if (r.error) { setError(r.error); setEtapa('elegir'); return; }
 
       setLectura(r);
+      // Para las pruebas: lo que se leyó, tal cual, antes de tocar nada.
+      if (typeof window !== 'undefined') window.__lecturaDePrueba = r;
       const faltanMods = Object.keys(r.sinClasificar).length > 0;
       const faltanProds = Object.keys(r.productosNuevos).length > 0;
       setEtapa(faltanMods || faltanProds ? 'clasificar' : 'revisar');
@@ -261,7 +315,10 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
     setAvance({ hechos: lectura.meses.length, total: lectura.meses.length, mes: '' });
 
     try { setPeriodosBD(await traerPeriodos()); } catch { /* no es grave */ }
-    try { alImportar?.(await traerCobertura()); } catch { /* sin fecha */ }
+    // Esto le dice a la app que vuelva a traer TODO, no solo la fecha de corte.
+    // Antes solo se actualizaba la cobertura y el tablero seguía enseñando lo
+    // de antes: había que cerrar sesión y volver a entrar para ver lo subido.
+    alImportar?.();
     setEtapa('hecho');
   }
 
@@ -269,6 +326,7 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
     setLectura(null); setResultados([]); setError('');
     setTiposElegidos({}); setProdsElegidos({});
     setNombreProductos(''); setNombreVentas('');
+    setFileProductos(null); setFileVentas(null);
     if (archivoProductos.current) archivoProductos.current.value = '';
     if (archivoVentas.current) archivoVentas.current.value = '';
     setEtapa('elegir');
@@ -299,7 +357,7 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
         <div style={rejilla(esAncho, '340px')}>
           <div style={tarjeta()}>
             <h2 style={{ fontSize: '17px', fontWeight: 600, marginBottom: '4px' }}>
-              Subir un mes
+              Subir ventas
             </h2>
             <p style={{ fontSize: '13.5px', color: C.tinta3, marginBottom: '14px',
                         lineHeight: 1.55 }}>
@@ -311,7 +369,11 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
             <label style={etiqueta}>Reporte de productos · obligatorio</label>
             <input
               ref={archivoProductos} type="file" accept=".xlsx,.xls"
-              onChange={(e) => setNombreProductos(e.target.files?.[0]?.name || '')}
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFileProductos(f);
+                setNombreProductos(f?.name || '');
+              }}
               style={{ ...campo(false), padding: '10px', marginBottom: '4px' }}
             />
             {nombreProductos && (
@@ -321,11 +383,15 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
             )}
 
             <label style={{ ...etiqueta, marginTop: '14px' }}>
-              Reporte de ventas · opcional
+              Reporte de ventas · muy recomendable
             </label>
             <input
               ref={archivoVentas} type="file" accept=".xlsx,.xls"
-              onChange={(e) => setNombreVentas(e.target.files?.[0]?.name || '')}
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFileVentas(f);
+                setNombreVentas(f?.name || '');
+              }}
               style={{ ...campo(false), padding: '10px', marginBottom: '4px' }}
             />
             <p style={{ fontSize: '12.5px', color: nombreVentas ? C.bien : C.tinta4,
@@ -548,7 +614,8 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
             <h3 style={{ fontSize: '13px', fontWeight: 600, color: C.tinta4,
                          textTransform: 'uppercase', letterSpacing: '0.07em',
                          marginBottom: '4px' }}>
-              {lectura.meses.length === 1 ? 'El mes' : `Los ${lectura.meses.length} meses`}
+              {lectura.meses.length === 1 ? 'Lo que se va a guardar'
+                                          : `${lectura.meses.length} periodos`}
             </h3>
             {lectura.meses.map((m) => (
               <FilaMes key={m.periodo} mes={m} yaExiste={existentes.has(m.periodo)} />
@@ -557,10 +624,11 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
 
           {lectura.meses.some((m) => existentes.has(m.periodo)) && (
             <div style={nota('aviso')}>
-              De los meses marcados en café se reemplazan <b>solo los días que trae
-              el archivo</b>: primero se borran esos días y luego entran los nuevos,
-              todo en un solo movimiento. Los días que no vienen en el archivo se
-              quedan como están. Si algo falla a media carga, no se pierde nada.
+              Los periodos marcados en café ya tienen datos. Se reemplazan
+              <b> solo los días que trae el archivo</b>: primero se borran esos
+              días y luego entran los nuevos, todo en un solo movimiento. Los
+              demás días del mes se quedan como están. Si algo falla a media
+              carga, no se pierde nada.
             </div>
           )}
 
@@ -590,10 +658,42 @@ export default function Importar({ perfil, esAncho, cobertura, alImportar }) {
             </div>
           )}
 
+          {/* Este aviso va aquí y no junto al selector de archivo porque aquí
+              es donde se decide. Cuando estaba arriba, en letra chica y en
+              gris, se pasó por alto: una carga de solo productos dejó una
+              semana con 0 recibos y ticket promedio en $0. */}
+          {!nombreVentas && (
+            <div style={nota('error')}>
+              <b>Falta el reporte de ventas.</b> Recibos, clientes y ticket
+              promedio <b>solo vienen en ese archivo</b>. Sin él, esos días van a
+              quedar sin recibos y el ticket promedio va a salir en $0 — y las
+              comparaciones contra otros periodos van a decir −100%.
+              <div style={{ marginTop: '8px' }}>
+                Lo que ya estaba guardado <b>no se borra</b>: un dato que no
+                viene en el archivo no vale cero, así que los recibos que ya
+                tenías se quedan. Pero los días nuevos entran sin ellos.
+              </div>
+              <div style={{ marginTop: '8px' }}>
+                En Poster es el reporte de <b>Ventas</b>, exportado con el mismo
+                rango de fechas. Puedes subirlo después: vuelve a cargar los dos
+                archivos del mismo rango y se completa.
+              </div>
+            </div>
+          )}
+
           <button onClick={subir} style={boton()}>
-            Subir {lectura.meses.length === 1
-              ? nombreMes(lectura.meses[0].periodo)
-              : `los ${lectura.meses.length} meses`}
+            {(() => {
+              // El botón dice lo que de verdad va a pasar. "Subir septiembre
+              // 2026" con un archivo de cuatro días se lee como si fuera a
+              // tocar el mes completo.
+              if (lectura.meses.length !== 1) return `Subir los ${lectura.meses.length} periodos`;
+              const f = lectura.meses[0].detalle.map((d) => d.fecha).sort();
+              const de = f[0], a = f[f.length - 1];
+              const n = diasEntreFechas(de, a);
+              return de === a
+                ? `Subir el ${fechaLarga(de)}`
+                : `Subir del ${fechaCorta(de)} al ${fechaCorta(a)} · ${n} días`;
+            })()}
           </button>
           <button onClick={reiniciar}
                   style={{ ...botonSecundario(), marginTop: '10px' }}>

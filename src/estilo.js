@@ -243,8 +243,13 @@ export const numero = (n) =>
 export const porciento = (n, d = 1) =>
   n === null || n === undefined ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(d)}%`;
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
-               'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+// Con mayúscula inicial, como los pidió Octavio. En español la norma es
+// minúscula, pero aquí casi siempre son rótulos —"Agosto 2026", "31 Ago"— y en
+// un rótulo la mayúscula se lee mejor. Va parejo en toda la app: un mes con
+// mayúscula en el encabezado y con minúscula tres renglones abajo se ve como
+// un descuido, no como una regla.
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+               'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 /** '2026-08' -> 'agosto 2026'. Se parte el texto en vez de crear un Date: en
  *  UTC−6 un Date construido desde '2026-08-01' cae en julio. */
