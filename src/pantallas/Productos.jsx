@@ -208,6 +208,77 @@ function TablaCompleta({ filas, total, dias }) {
  * en su propio bloque, en vez de arrastrar el promedio a cero.
  */
 /**
+ * Lo que más deja cada sección, todo a la vista.
+ *
+ * Es la otra mitad del filtro de arriba. El filtro sirve para meterse en una
+ * sección; esto sirve para lo contrario: ver las nueve de un jalón y notar que
+ * Antojitos deja más dinero que Clásicos con la quinta parte de las unidades.
+ * Esa comparación no se puede hacer entrando y saliendo de un filtro.
+ *
+ * Tres por sección y no diez: aquí la pregunta es "¿quién manda en cada una?",
+ * no "¿cuál es el ranking completo?". Para eso está la tabla de abajo.
+ */
+function TopPorCategoria({ categorias, esAncho, alElegir }) {
+  if (!categorias.length) return null;
+  return (
+    <div style={{ display: 'grid', gap: '14px',
+                  gridTemplateColumns: esAncho
+                    ? 'repeat(auto-fit, minmax(260px, 1fr))' : '1fr' }}>
+      {categorias.map((c, i) => (
+        <div key={c.categoria} style={{
+          border: `1px solid ${C.linea}`, borderRadius: '12px', padding: '13px 14px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px',
+                        marginBottom: '9px' }}>
+            <span style={{ width: '9px', height: '9px', borderRadius: '3px',
+                           flex: 'none',
+                           background: i < SERIES.length ? SERIES[i] : '#BCADA2' }} />
+            <button onClick={() => alElegir(c.categoria)}
+              style={{ background: 'none', border: 'none', padding: 0,
+                       cursor: 'pointer', fontFamily: 'inherit',
+                       fontSize: '14.5px', fontWeight: 700, color: C.tinta,
+                       textDecoration: 'underline', textDecorationColor: C.linea,
+                       textUnderlineOffset: '3px' }}>
+              {c.categoria}
+            </button>
+            <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 600,
+                           fontVariantNumeric: 'tabular-nums' }}>
+              {pesos(c.ingresos)}
+            </span>
+          </div>
+          {c.top.map((p, j) => (
+            <div key={p.producto} style={{ display: 'flex', gap: '8px',
+                                           alignItems: 'baseline',
+                                           padding: '4px 0', fontSize: '13px' }}>
+              <span style={{ color: C.tinta4, flex: 'none', width: '14px' }}>
+                {j + 1}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, color: C.tinta2,
+                             overflow: 'hidden', textOverflow: 'ellipsis',
+                             whiteSpace: 'nowrap' }}>{p.producto}</span>
+              <span style={{ flex: 'none', color: C.tinta3,
+                             fontVariantNumeric: 'tabular-nums' }}>
+                {numero(p.unidades)} u.
+              </span>
+              <span style={{ flex: 'none', fontWeight: 600, width: '72px',
+                             textAlign: 'right',
+                             fontVariantNumeric: 'tabular-nums' }}>
+                {pesos(p.ingresos)}
+              </span>
+            </div>
+          ))}
+          {c.top.length === 0 && (
+            <div style={{ fontSize: '13px', color: C.tinta4 }}>
+              Sin ventas en el periodo.
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Un precio, o un rango cuando el mismo extra cuesta distinto según el
  * platillo. El rango no es un defecto del cálculo: el guiso de más cuesta $8 en
  * gorditas y $5 en bocoles, y aplanarlo a un promedio inventaría un precio que
@@ -493,6 +564,31 @@ export default function Productos({ rango, esAncho }) {
     const categorias = [...porCategoria.values()].sort((a, b) => b.ingresos - a.ingresos);
     const hayCategorias = datos.ahora.some((f) => f.categoria);
 
+    // Dos estados que se ven IGUAL en pantalla y significan cosas opuestas:
+    //
+    //   · la base devuelve 'categoria' y viene nula  → faltan clasificar
+    //   · la base NO devuelve la columna 'categoria' → falta correr 08_rangos
+    //
+    // Sin distinguirlos, el segundo caso se lee como "todo está sin clasificar"
+    // aunque el catálogo esté completo, y uno se vuelve loco buscando en el
+    // lugar equivocado. Pasó. La diferencia se nota preguntando si la LLAVE
+    // existe, no si el valor es nulo.
+    const baseVieja = datos.ahora.length > 0
+      && !Object.prototype.hasOwnProperty.call(datos.ahora[0], 'categoria');
+
+    // Los tres que más dejan en cada sección, para tenerlos todos a la mano sin
+    // ir cambiando de filtro. Se calcula sobre TODO el periodo, no sobre lo
+    // filtrado, por la misma razón que el reparto de arriba.
+    const topPorCategoria = categorias
+      .filter((c) => c.categoria !== 'Sin categoría')
+      .map((c) => ({
+        ...c,
+        top: datos.ahora
+          .filter((f) => (f.categoria || 'Sin categoría') === c.categoria)
+          .sort((a, b) => (+b.ingresos || 0) - (+a.ingresos || 0))
+          .slice(0, 3),
+      }));
+
     const de = (filas) => categoria === 'todas' ? filas
       : filas.filter((f) => (f.categoria || 'Sin categoría') === categoria);
 
@@ -512,7 +608,8 @@ export default function Productos({ rango, esAncho }) {
     return {
       total, unidades, cuantos: ahora.length, diasA, diasB, normaliza,
       porDinero, porVolumen, completo,
-      categorias, hayCategorias, totalPeriodo,
+      categorias, hayCategorias, baseVieja, totalPeriodo,
+      topPorCategoria,
       ...movimiento(ahora, antes, { diasA, diasB }),
       hayBase: antes.length > 0,
     };
@@ -574,6 +671,14 @@ export default function Productos({ rango, esAncho }) {
             </Tarjeta>
           )}
 
+          {calc.hayCategorias && calc.topPorCategoria.length > 0 && (
+            <Tarjeta titulo="Lo que más deja cada sección"
+                     sub="Los tres primeros de cada una, para verlas todas juntas. Toca el nombre de una sección para meterte solo en ella.">
+              <TopPorCategoria categorias={calc.topPorCategoria} esAncho={esAncho}
+                               alElegir={setCategoria} />
+            </Tarjeta>
+          )}
+
           {calc.hayCategorias && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px',
                           margin: '0 0 14px', flexWrap: 'wrap' }}>
@@ -591,7 +696,21 @@ export default function Productos({ rango, esAncho }) {
             </div>
           )}
 
-          {!calc.hayCategorias && (
+          {calc.baseVieja && (
+            <div style={nota('error')}>
+              <b>La base todavía no manda las categorías a esta pantalla.</b> No es
+              que falte clasificar: el catálogo puede estar completo y aquí se
+              vería igual de vacío. Lo que falta es correr{' '}
+              <b>08_rangos.sql</b> en Supabase — ese archivo es el que hace que
+              la consulta de productos traiga la sección de cada uno.
+              <div style={{ marginTop: '8px' }}>
+                Se corre las veces que haga falta y no toca datos: solo redefine
+                la consulta. Después, el botón <b>Refrescar</b> de arriba.
+              </div>
+            </div>
+          )}
+
+          {!calc.baseVieja && !calc.hayCategorias && (
             <div style={nota('aviso')}>
               Todavía no hay categorías puestas. En la pestaña <b>Catálogo</b> se
               clasifica cada producto por sección del menú, y en cuanto lo hagas
@@ -600,7 +719,9 @@ export default function Productos({ rango, esAncho }) {
           )}
 
           <div style={rejilla(esAncho, '330px')}>
-            <Tarjeta titulo="Los que más dinero dejan"
+            <Tarjeta titulo={categoria === 'todas'
+                       ? 'Los que más dinero dejan'
+                       : `${categoria} · los que más dinero dejan`}
                      sub="Por ingreso del periodo.">
               <Barras datos={calc.porDinero.slice(0, 10).map((p) => ({
                 etiqueta: p.producto, valor: +p.ingresos,
@@ -616,7 +737,9 @@ export default function Productos({ rango, esAncho }) {
               ]} />
             </Tarjeta>
 
-            <Tarjeta titulo="Los que más se venden"
+            <Tarjeta titulo={categoria === 'todas'
+                       ? 'Los que más se venden'
+                       : `${categoria} · los que más se venden`}
                      sub="Por unidades. No es la misma lista que la de arriba, y esa diferencia es la información.">
               <Barras datos={calc.porVolumen.slice(0, 10).map((p) => ({
                 etiqueta: p.producto, valor: +p.unidades, color: SERIES[1],
